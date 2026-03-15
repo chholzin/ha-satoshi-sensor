@@ -38,6 +38,25 @@ _CONF_WALLET = "wallet"
 BTC_ADDRESS_RE = re.compile(r"^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,87}$")
 
 
+def _validate_btc_address(address: str) -> bool:
+    """Validate a Bitcoin address including checksum where possible."""
+    if not BTC_ADDRESS_RE.match(address):
+        return False
+    if address.startswith("bc1"):
+        # Bech32/Bech32m: must be all-lowercase after the prefix
+        return address == address.lower()
+    # Legacy (1…) and P2SH (3…): verify Base58Check checksum
+    try:
+        from .xpub import _b58check_decode
+        payload = _b58check_decode(address)
+        # Must decode to exactly 21 bytes (1 version + 20 hash160)
+        if len(payload) != 21:
+            return False
+        return payload[0] in (0x00, 0x05)
+    except (ValueError, Exception):
+        return False
+
+
 def _validate_xpub(xpub: str) -> bool:
     return xpub[:4].lower() in XPUB_PREFIXES and len(xpub) >= 100
 
@@ -90,7 +109,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
                             CONF_CURRENCY: currency,
                         },
                     )
-            elif BTC_ADDRESS_RE.match(wallet):
+            elif _validate_btc_address(wallet):
                 await self.async_set_unique_id(wallet)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
