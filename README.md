@@ -67,6 +67,7 @@ Die Integration leitet automatisch alle Adressen ab und scannt sie mit Gap Limit
 | **Ledger** | Ledger Live → Konto → Einstellungen → Erweiterter Modus → Kontoschlüssel |
 | **Trezor** | Trezor Suite → Konto → Details → Öffentlicher Schlüssel |
 | **Coldcard** | Advanced → View XPub |
+| **BitBox02** | BitBoxApp → Konto → Konto-Info → Extended Public Key |
 
 #### Unterstützte Key-Typen
 
@@ -156,6 +157,7 @@ The integration will automatically derive all addresses and scan them with a gap
 | **Ledger** | Ledger Live → Account → Settings → Advanced → Account key |
 | **Trezor** | Trezor Suite → Account → Details → Public key |
 | **Coldcard** | Advanced → View XPub |
+| **BitBox02** | BitBoxApp → Account → Account Info → Extended Public Key |
 
 #### Supported key types
 
