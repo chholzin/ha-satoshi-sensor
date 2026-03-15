@@ -174,9 +174,9 @@ def _bech32_polymod(values: list[int]) -> int:
     return chk
 
 
-def _bech32_checksum(hrp: str, data: list[int]) -> list[int]:
+def _bech32_checksum(hrp: str, data: list[int], spec: int = 1) -> list[int]:
     expand = [ord(c) >> 5 for c in hrp] + [0] + [ord(c) & 31 for c in hrp]
-    poly = _bech32_polymod(expand + data + [0] * 6) ^ 1
+    poly = _bech32_polymod(expand + data + [0] * 6) ^ spec
     return [(poly >> (5 * (5 - i))) & 31 for i in range(6)]
 
 
@@ -184,6 +184,31 @@ def _p2wpkh(pub: bytes) -> str:
     witprog = list(_hash160(pub))
     data = [0] + _convertbits(witprog, 8, 5)
     return "bc1" + "".join(_BECH32[d] for d in data + _bech32_checksum("bc", data))
+
+
+def _tagged_hash(tag: str, msg: bytes) -> bytes:
+    tag_hash = hashlib.sha256(tag.encode()).digest()
+    return hashlib.sha256(tag_hash + tag_hash + msg).digest()
+
+
+def _p2tr(pub: bytes) -> str:
+    """BIP86 key-path-only Taproot address from a compressed public key."""
+    # Get the x-only (32 bytes) internal key
+    point = _decompress(pub)
+    x_bytes = point[0].to_bytes(32, "big")
+
+    # Tweak: t = tagged_hash("TapTweak", x_only_pubkey)
+    t = int.from_bytes(_tagged_hash("TapTweak", x_bytes), "big") % _N
+    tweaked = _point_add(point, _point_mul(t, _G))
+    if tweaked is None:
+        raise ValueError("Tweaked key is point at infinity")
+
+    # Output key: x-only coordinate of tweaked point
+    output_key = tweaked[0].to_bytes(32, "big")
+
+    # Bech32m encoding (witness version 1)
+    data = [1] + _convertbits(list(output_key), 8, 5)
+    return "bc1" + "".join(_BECH32[d] for d in data + _bech32_checksum("bc", data, spec=0x2BC830A3))
 
 
 _ADDR_FN = {"xpub": _p2pkh, "ypub": _p2sh_p2wpkh, "zpub": _p2wpkh}

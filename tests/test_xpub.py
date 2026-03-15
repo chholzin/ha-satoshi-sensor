@@ -29,6 +29,7 @@ _hash160 = _xpub_mod._hash160
 _p2pkh = _xpub_mod._p2pkh
 _p2sh_p2wpkh = _xpub_mod._p2sh_p2wpkh
 _p2wpkh = _xpub_mod._p2wpkh
+_p2tr = _xpub_mod._p2tr
 derive_addresses = _xpub_mod.derive_addresses
 is_xpub = _xpub_mod.is_xpub
 
@@ -121,6 +122,22 @@ class TestAddressEncoding:
     def test_p2wpkh_hrp(self):
         addr = _p2wpkh(bytes(33))
         assert addr.startswith("bc1q")
+
+    def test_p2tr_hrp(self):
+        """P2TR addresses must start with bc1p (witness version 1)."""
+        # Use the generator point's compressed pubkey as test input
+        from custom_components.satoshi_sensor.xpub import _compress, _Gx, _Gy
+        pub = _compress(_Gx, _Gy)
+        addr = _p2tr(pub)
+        assert addr.startswith("bc1p")
+        # Taproot addresses are 62 characters long
+        assert len(addr) == 62
+
+    def test_p2tr_deterministic(self):
+        """Same pubkey must always produce the same P2TR address."""
+        from custom_components.satoshi_sensor.xpub import _compress, _Gx, _Gy
+        pub = _compress(_Gx, _Gy)
+        assert _p2tr(pub) == _p2tr(pub)
 
     def test_p2pkh_known_hash160(self):
         """P2PKH: version 0x00 + hash160 → base58check."""
