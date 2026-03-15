@@ -12,16 +12,22 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
 
 - **Einzelne Adressen** oder ganze **HD Wallets via xpub/ypub/zpub** hinzufügen
 - Ein Config Entry pro Wallet (einzeln hinzufügen/entfernen)
-- **5 Sensoren pro Einzeladresse**, **6 Sensoren pro HD Wallet**:
+- **6 Sensoren pro Einzeladresse**, **7 Sensoren pro HD Wallet**:
   - **Balance (Satoshi)** — bestätigtes Guthaben in Satoshi
   - **Balance (BTC)** — bestätigtes Guthaben in BTC
-  - **Wert** — Fiat-Wert in der konfigurierten Währung (EUR, USD, CHF, GBP)
-  - **BTC Preisänderung 24h** — Preisänderung in % über 24 Stunden
-  - **Unbestätigtes Guthaben** — ausstehende unbestätigte Transaktionen in Satoshi
-  - **Aktive Adressen** *(nur HD Wallet)* — Anzahl Adressen mit Transaktionshistorie
+  - **Value** — Fiat-Wert in der konfigurierten Währung (EUR, USD, CHF, GBP)
+  - **BTC Price Change 24h** — Preisänderung in % über 24 Stunden
+  - **Unconfirmed Balance** — ausstehende unbestätigte Transaktionen in Satoshi
+  - **Transactions** — Gesamtzahl der Transaktionen
+  - **Active Addresses** *(nur HD Wallet)* — Anzahl Adressen mit Transaktionshistorie
 - Gerätename enthält automatisch den Adresstyp (Legacy / SegWit / Native SegWit / Taproot)
 - HD-Wallet: alle verwendeten Adressen mit Guthaben als Sensor-Attribute abrufbar
+- HD-Wallet: scannt **externe und Change-Chain** (m/.../0 und m/.../1) für vollständige Salden
+- HD-Wallet: **Adress-Cache** über HA-Storage — schnellerer Neustart ohne vollständigen Rescan
 - Konfigurierbares Aktualisierungsintervall (Standard: 5 min, Minimum: 1 min)
+- **Eigene Mempool-API-URL** konfigurierbar (z. B. Umbrel, RaspiBlitz oder eigene Instanz)
+- **Exponential Backoff** bei API-Fehlern (Rate Limits, Server-Fehler) — verdoppelt das Intervall bis max. 4×
+- **Diagnostik** über Home Assistant → Geräte & Dienste → Satoshi Sensor → Diagnostik herunterladen
 - Datenquellen: [mempool.space](https://mempool.space) (Guthaben) und [CoinGecko](https://coingecko.com) (Preis)
 - Kein API-Key erforderlich
 - Verfügbar in Deutsch und Englisch
@@ -49,7 +55,7 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
 4. Optional ein Label vergeben
 5. Fiat-Währung wählen (Standard: EUR)
 
-Die Integration leitet bei xpub/ypub/zpub automatisch alle Adressen ab und scannt sie mit Gap Limit 20 (BIP44-Standard). Bis zu 5 parallele API-Anfragen.
+Die Integration leitet bei xpub/ypub/zpub automatisch alle Adressen ab — sowohl auf der **externen Chain** (Empfangsadressen, m/.../0) als auch auf der **Change-Chain** (Wechselgeld, m/.../1) — und scannt sie mit Gap Limit 20 (BIP44-Standard). Bis zu 5 parallele API-Anfragen. Bereits gescannte Adressen werden gecacht und beim nächsten Neustart sofort abgefragt.
 
 #### Wo findet man den xpub?
 
@@ -129,8 +135,19 @@ Einzelnes Guthaben einer bestimmten Adresse abfragen:
 
 - **Fiat-Währung** — EUR, USD, CHF, GBP
 - **Aktualisierungsintervall** — in Sekunden (Minimum: 60)
+- **Mempool-API-URL** — eigene Mempool-Instanz verwenden (Standard: `https://mempool.space/api`)
 
 Änderungen werden sofort übernommen (die Integration lädt automatisch neu).
+
+### Diagnostik
+
+Unter **Einstellungen → Geräte & Dienste → Satoshi Sensor → Diagnostik herunterladen** können Diagnosedaten exportiert werden. Enthalten sind:
+
+- Eintragtyp und redaktierter Identifier
+- Aktuelles Guthaben, Preis, Transaktionsanzahl
+- Update-Intervall und Fehleranzahl
+- Mempool-API-URL
+- Bei HD-Wallets: Anzahl aktiver/gescannter Adressen
 
 ---
 
@@ -142,16 +159,22 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
 
 - Add **single addresses** or entire **HD wallets via xpub/ypub/zpub**
 - One config entry per wallet (easy to add/remove individually)
-- **5 sensors per single address**, **6 sensors per HD wallet**:
+- **6 sensors per single address**, **7 sensors per HD wallet**:
   - **Balance (Satoshi)** — confirmed balance in satoshis
   - **Balance (BTC)** — confirmed balance in BTC
   - **Value** — fiat value in your configured currency (EUR, USD, CHF, GBP)
   - **BTC Price Change 24h** — 24-hour BTC price change in %
   - **Unconfirmed Balance** — pending unconfirmed balance in satoshis
+  - **Transactions** — total number of transactions
   - **Active Addresses** *(HD wallet only)* — number of addresses with transaction history
 - Device name automatically includes the address type (Legacy / SegWit / Native SegWit / Taproot)
 - HD wallet: all used addresses with balances accessible as sensor attributes
+- HD wallet: scans **external and change chain** (m/.../0 and m/.../1) for complete balances
+- HD wallet: **address cache** via HA storage — faster restarts without full rescan
 - Configurable update interval (default: 5 min, minimum: 1 min)
+- **Custom Mempool API URL** configurable (e.g. Umbrel, RaspiBlitz or self-hosted instance)
+- **Exponential backoff** on API errors (rate limits, server errors) — doubles the interval up to 4×
+- **Diagnostics** via Home Assistant → Devices & Services → Satoshi Sensor → Download diagnostics
 - Data sourced from [mempool.space](https://mempool.space) (balance) and [CoinGecko](https://coingecko.com) (price)
 - No API key required
 - Available in English and German
@@ -179,7 +202,7 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
 4. Optionally enter a label
 5. Select your preferred fiat currency (default: EUR)
 
-The integration will automatically derive all addresses for xpub/ypub/zpub entries and scan them with a gap limit of 20 (BIP44 standard). Up to 5 parallel API requests are used.
+The integration will automatically derive all addresses for xpub/ypub/zpub entries — both on the **external chain** (receive addresses, m/.../0) and the **change chain** (change addresses, m/.../1) — and scan them with a gap limit of 20 (BIP44 standard). Up to 5 parallel API requests are used. Previously scanned addresses are cached and fetched immediately on the next restart.
 
 #### Where to find your xpub
 
@@ -259,5 +282,16 @@ Go to the integration's **Configure** button to change:
 
 - **Fiat currency** — EUR, USD, CHF, GBP
 - **Update interval** — in seconds (minimum: 60)
+- **Mempool API URL** — use your own Mempool instance (default: `https://mempool.space/api`)
 
 Changes take effect immediately after saving (the integration reloads automatically).
+
+### Diagnostics
+
+Under **Settings → Devices & Services → Satoshi Sensor → Download diagnostics** you can export diagnostic data including:
+
+- Entry type and redacted identifier
+- Current balance, price, transaction count
+- Update interval and error count
+- Mempool API URL
+- For HD wallets: number of active/scanned addresses
