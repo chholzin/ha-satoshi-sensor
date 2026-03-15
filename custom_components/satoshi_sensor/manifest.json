@@ -1,10 +1,10 @@
 {
   "domain": "satoshi_sensor",
   "name": "Satoshi Sensor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "config_flow": true,
   "iot_class": "cloud_polling",
-  "requirements": ["bip_utils==2.9.3"],
+  "requirements": [],
   "codeowners": ["@chholzin"],
   "documentation": "https://github.com/chholzin/ha-satoshi-sensor",
   "issue_tracker": "https://github.com/chholzin/ha-satoshi-sensor/issues",
