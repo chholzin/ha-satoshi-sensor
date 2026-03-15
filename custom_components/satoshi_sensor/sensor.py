@@ -139,7 +139,7 @@ class BtcBalanceSensor(_BaseSensor):
 
 
 class FiatValueSensor(_BaseSensor):
-    _attr_name = "Wert"
+    _attr_name = "Value"
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_suggested_display_precision = 2
     _attr_icon = "mdi:currency-eur"
@@ -194,7 +194,7 @@ class PriceChange24hSensor(_BaseSensor):
 
 
 class UnconfirmedBalanceSensor(_BaseSensor):
-    _attr_name = "Unbestätigtes Guthaben"
+    _attr_name = "Unconfirmed Balance"
     _attr_native_unit_of_measurement = "sat"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:clock-outline"
@@ -211,8 +211,8 @@ class UnconfirmedBalanceSensor(_BaseSensor):
 
 
 class AddressCountSensor(_BaseSensor):
-    _attr_name = "Aktive Adressen"
-    _attr_native_unit_of_measurement = "Adressen"
+    _attr_name = "Active Addresses"
+    _attr_native_unit_of_measurement = "addresses"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:wallet"
 
