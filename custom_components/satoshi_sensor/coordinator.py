@@ -28,9 +28,16 @@ async def _fetch_price(session: aiohttp.ClientSession, currency: str) -> tuple[f
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
         if resp.status != 200:
             raise UpdateFailed(f"CoinGecko returned HTTP {resp.status}")
-        data = await resp.json()
+        try:
+            data = await resp.json()
+        except (ValueError, aiohttp.ContentTypeError) as err:
+            raise UpdateFailed(f"CoinGecko returned invalid JSON: {err}") from err
 
-    price = data["bitcoin"][currency]
+    try:
+        price = data["bitcoin"][currency]
+    except (KeyError, TypeError) as err:
+        raise UpdateFailed(f"Unexpected CoinGecko response structure: {err}") from err
+
     change_key = f"{currency}_24h_change"
     price_change_24h = round(data["bitcoin"].get(change_key, 0.0), 2)
     return price, price_change_24h
@@ -46,16 +53,24 @@ async def _fetch_address_data(
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
                 raise UpdateFailed(f"mempool.space returned HTTP {resp.status} for {address}")
-            data = await resp.json()
+            try:
+                data = await resp.json()
+            except (ValueError, aiohttp.ContentTypeError) as err:
+                raise UpdateFailed(f"mempool.space returned invalid JSON for {address}: {err}") from err
 
-    funded = data["chain_stats"]["funded_txo_sum"]
-    spent = data["chain_stats"]["spent_txo_sum"]
-    unconfirmed_funded = data["mempool_stats"]["funded_txo_sum"]
-    unconfirmed_spent = data["mempool_stats"]["spent_txo_sum"]
+    try:
+        funded = data["chain_stats"]["funded_txo_sum"]
+        spent = data["chain_stats"]["spent_txo_sum"]
+        unconfirmed_funded = data["mempool_stats"]["funded_txo_sum"]
+        unconfirmed_spent = data["mempool_stats"]["spent_txo_sum"]
+        tx_count = data["chain_stats"]["tx_count"]
+    except (KeyError, TypeError) as err:
+        raise UpdateFailed(f"Unexpected mempool.space response structure for {address}: {err}") from err
+
     return {
         "balance": funded - spent,
         "unconfirmed": unconfirmed_funded - unconfirmed_spent,
-        "tx_count": data["chain_stats"]["tx_count"],
+        "tx_count": tx_count,
     }
 
 
