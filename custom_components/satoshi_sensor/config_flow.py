@@ -7,10 +7,7 @@ from typing import Any
 
 import voluptuous as vol
 
-_LOGGER = logging.getLogger(__name__)
-
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
-from homeassistant.data_entry_flow import FlowResult
+from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 
 from .const import (
     CONF_ADDRESS,
@@ -29,6 +26,8 @@ from .const import (
     XPUB_PREFIXES,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 BTC_ADDRESS_RE = re.compile(r"^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,87}$")
 
 
@@ -46,7 +45,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             if user_input[CONF_ENTRY_TYPE] == ENTRY_TYPE_XPUB:
                 return await self.async_step_xpub()
@@ -63,7 +62,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
             ),
         )
 
-    async def async_step_address(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_address(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -98,7 +97,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_xpub(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_xpub(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -142,24 +141,21 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return SatoshiSensorOptionsFlow(config_entry)
+        return SatoshiSensorOptionsFlow()
 
 
 class SatoshiSensorOptionsFlow(OptionsFlow):
     """Handle options (currency and interval)."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self._entry = config_entry
-
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
-        current_currency = self._entry.options.get(
-            CONF_CURRENCY, self._entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+        current_currency = self.config_entry.options.get(
+            CONF_CURRENCY, self.config_entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
         )
-        current_interval = self._entry.options.get(
-            CONF_SCAN_INTERVAL, self._entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL)
+        current_interval = self.config_entry.options.get(
+            CONF_SCAN_INTERVAL, self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL)
         )
         return self.async_show_form(
             step_id="init",

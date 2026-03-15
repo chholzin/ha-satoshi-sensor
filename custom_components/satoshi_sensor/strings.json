@@ -2,10 +2,28 @@
   "config": {
     "step": {
       "user": {
-        "title": "Bitcoin-Wallet hinzufügen",
+        "title": "Wallet-Typ wählen",
+        "data": {
+          "entry_type": "Typ"
+        },
+        "data_description": {
+          "entry_type": "\"address\" für eine einzelne Adresse, \"xpub\" für eine Hardware-Wallet (HD Wallet)"
+        }
+      },
+      "address": {
+        "title": "Bitcoin-Adresse hinzufügen",
         "description": "Gib eine Bitcoin-Wallet-Adresse ein (Legacy, SegWit oder Native SegWit).",
         "data": {
           "address": "Bitcoin-Adresse",
+          "label": "Name / Label (optional)",
+          "currency": "Fiat-Währung"
+        }
+      },
+      "xpub": {
+        "title": "HD Wallet (xpub) hinzufügen",
+        "description": "Gib den Extended Public Key (xpub/ypub/zpub) deiner Hardware-Wallet ein. Alle Adressen werden automatisch abgeleitet (Gap Limit: 20).",
+        "data": {
+          "xpub": "Extended Public Key (xpub / ypub / zpub)",
           "label": "Name / Label (optional)",
           "currency": "Fiat-Währung"
         }
@@ -13,10 +31,11 @@
     },
     "error": {
       "invalid_address": "Ungültige Bitcoin-Adresse. Muss mit 1, 3 oder bc1 beginnen.",
+      "invalid_xpub": "Ungültiger Extended Public Key. Muss mit xpub, ypub oder zpub beginnen.",
       "already_configured": "Diese Adresse ist bereits konfiguriert."
     },
     "abort": {
-      "already_configured": "Diese Wallet-Adresse ist bereits eingerichtet."
+      "already_configured": "Diese Wallet ist bereits eingerichtet."
     }
   },
   "options": {
@@ -24,7 +43,8 @@
       "init": {
         "title": "Einstellungen",
         "data": {
-          "currency": "Fiat-Währung"
+          "currency": "Fiat-Währung",
+          "scan_interval": "Aktualisierungsintervall (Sekunden)"
         }
       }
     }
