@@ -194,8 +194,15 @@ def is_xpub(value: str) -> bool:
     return value[:4].lower() in _ADDR_FN
 
 
-def derive_addresses(xpub: str, start: int, count: int) -> list[str]:
-    """Derive `count` external-chain addresses starting at index `start`."""
+def derive_addresses(xpub: str, start: int, count: int, *, chain: int = 0) -> list[str]:
+    """Derive `count` addresses starting at index `start`.
+
+    Args:
+        xpub: Extended public key (xpub/ypub/zpub).
+        start: First address index.
+        count: Number of addresses to derive.
+        chain: BIP32 chain index — 0 for external (receive), 1 for internal (change).
+    """
     prefix = xpub[:4].lower()
     if prefix not in _ADDR_FN:
         raise ValueError(f"Unsupported prefix: {prefix!r}. Expected one of {XPUB_PREFIXES}.")
@@ -203,12 +210,12 @@ def derive_addresses(xpub: str, start: int, count: int) -> list[str]:
     addr_fn = _ADDR_FN[prefix]
     account_pub, account_chain = _parse_xpub(xpub)
 
-    # Derive external chain key (m/.../0)
-    ext_pub, ext_chain = _derive_child_pubkey(account_pub, account_chain, 0)
+    # Derive chain key (m/.../chain)
+    chain_pub, chain_code = _derive_child_pubkey(account_pub, account_chain, chain)
 
     addresses = []
     for i in range(start, start + count):
-        child_pub, _ = _derive_child_pubkey(ext_pub, ext_chain, i)
+        child_pub, _ = _derive_child_pubkey(chain_pub, chain_code, i)
         addresses.append(addr_fn(child_pub))
 
     return addresses

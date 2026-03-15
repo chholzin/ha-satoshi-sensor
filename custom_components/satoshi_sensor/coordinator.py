@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import timedelta
+from functools import partial
 
 import aiohttp
 
@@ -256,46 +257,53 @@ class XpubCoordinator(DataUpdateCoordinator):
             await self._session.close()
         await super().async_shutdown()
 
-    async def _load_cached_addresses(self) -> list[str] | None:
+    async def _load_cached_addresses(self) -> dict[str, list[str]] | None:
         if self._cached_addresses is not None:
             return self._cached_addresses
         stored = await self._store.async_load()
+        if stored and isinstance(stored.get("external"), list):
+            self._cached_addresses = {
+                "external": stored["external"],
+                "change": stored.get("change", []),
+            }
+            total = len(self._cached_addresses["external"]) + len(self._cached_addresses["change"])
+            _LOGGER.debug("Loaded %d cached addresses for %s", total, self.xpub[:8])
+            return self._cached_addresses
+        # Migrate old format (flat list = external only)
         if stored and isinstance(stored.get("addresses"), list):
-            self._cached_addresses = stored["addresses"]
-            _LOGGER.debug("Loaded %d cached addresses for %s", len(self._cached_addresses), self.xpub[:8])
+            self._cached_addresses = {"external": stored["addresses"], "change": []}
             return self._cached_addresses
         return None
 
-    async def _save_cached_addresses(self, addresses: list[str]) -> None:
+    async def _save_cached_addresses(self, addresses: dict[str, list[str]]) -> None:
         self._cached_addresses = addresses
-        await self._store.async_save({"addresses": addresses})
+        await self._store.async_save(addresses)
 
-    async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
+    async def _scan_chain(
+        self,
+        session: aiohttp.ClientSession,
+        semaphore: asyncio.Semaphore,
+        chain: int,
+        cached_addrs: list[str],
+    ) -> dict[str, dict]:
         from .xpub import derive_addresses
 
-        semaphore = asyncio.Semaphore(5)
         results: dict[str, dict] = {}
 
-        # Try cached addresses first for fast startup
-        cached = await self._load_cached_addresses()
-        if cached:
-            tasks = [_fetch_address_data(session, addr, semaphore) for addr in cached]
+        # Fetch cached addresses first
+        if cached_addrs:
+            tasks = [_fetch_address_data(session, addr, semaphore) for addr in cached_addrs]
             batch_results = await asyncio.gather(*tasks)
-            for addr, data in zip(cached, batch_results):
+            for addr, data in zip(cached_addrs, batch_results):
                 results[addr] = data
 
-            # Check if we need to scan beyond the cache (new addresses may have been used)
-            max_cached_index = len(cached)
-        else:
-            max_cached_index = 0
-
-        # Full gap-limit scan starting after cached addresses
+        # Scan beyond cache for new addresses
         gap = 0
-        index = max_cached_index
+        index = len(cached_addrs)
 
         while gap < GAP_LIMIT:
             batch = await self.hass.async_add_executor_job(
-                derive_addresses, self.xpub, index, XPUB_BATCH_SIZE
+                partial(derive_addresses, self.xpub, index, XPUB_BATCH_SIZE, chain=chain)
             )
             tasks = [_fetch_address_data(session, addr, semaphore) for addr in batch]
             batch_results = await asyncio.gather(*tasks)
@@ -306,15 +314,32 @@ class XpubCoordinator(DataUpdateCoordinator):
                     gap += 1
                 else:
                     gap = 0
-
                 if gap >= GAP_LIMIT:
                     break
 
             index += XPUB_BATCH_SIZE
 
-        # Persist all known addresses for next startup
-        all_addresses = list(results.keys())
-        if all_addresses != (cached or []):
-            await self._save_cached_addresses(all_addresses)
+        return results
+
+    async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
+        semaphore = asyncio.Semaphore(5)
+
+        cached = await self._load_cached_addresses()
+        cached_ext = cached["external"] if cached else []
+        cached_chg = cached["change"] if cached else []
+
+        ext_results = await self._scan_chain(session, semaphore, 0, cached_ext)
+        chg_results = await self._scan_chain(session, semaphore, 1, cached_chg)
+
+        # Merge results
+        results = {**ext_results, **chg_results}
+
+        # Update cache
+        new_cache = {
+            "external": list(ext_results.keys()),
+            "change": list(chg_results.keys()),
+        }
+        if new_cache != (cached or {}):
+            await self._save_cached_addresses(new_cache)
 
         return results

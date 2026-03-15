@@ -173,3 +173,19 @@ class TestDeriveAddresses:
 
     def test_empty_derivation(self):
         assert derive_addresses(ZPUB_BIP84, 0, 0) == []
+
+    def test_change_chain_differs_from_external(self):
+        """Change chain (m/.../1) must produce different addresses than external (m/.../0)."""
+        ext = derive_addresses(ZPUB_BIP84, 0, 3, chain=0)
+        chg = derive_addresses(ZPUB_BIP84, 0, 3, chain=1)
+        assert len(chg) == 3
+        # All change addresses must differ from external
+        for addr in chg:
+            assert addr not in ext
+            assert addr.startswith("bc1q")
+
+    def test_change_chain_deterministic(self):
+        """Same xpub + chain=1 must produce the same addresses each time."""
+        a = derive_addresses(ZPUB_BIP84, 0, 2, chain=1)
+        b = derive_addresses(ZPUB_BIP84, 0, 2, chain=1)
+        assert a == b
