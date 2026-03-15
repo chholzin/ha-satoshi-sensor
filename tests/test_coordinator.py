@@ -16,23 +16,31 @@ sys.modules.setdefault(_pkg_name, types.ModuleType(_pkg_name))
 
 _const = types.ModuleType(f"{_pkg_name}.const")
 for _k, _v in {
-    "COINGECKO_API_URL": "", "DEFAULT_UPDATE_INTERVAL": 300, "GAP_LIMIT": 20,
-    "MEMPOOL_API_URL": "", "MIN_UPDATE_INTERVAL": 60, "SATOSHIS_PER_BTC": SATOSHIS_PER_BTC,
-    "XPUB_BATCH_SIZE": 20,
+    "COINGECKO_API_URL": "", "DEFAULT_UPDATE_INTERVAL": 300, "DOMAIN": "satoshi_sensor",
+    "GAP_LIMIT": 20, "MEMPOOL_API_URL": "", "MIN_UPDATE_INTERVAL": 60,
+    "SATOSHIS_PER_BTC": SATOSHIS_PER_BTC, "XPUB_BATCH_SIZE": 20,
 }.items():
     setattr(_const, _k, _v)
 sys.modules[f"{_pkg_name}.const"] = _const
 
 # Stub HA modules
-for _mod in [
-    "homeassistant", "homeassistant.core",
-    "homeassistant.helpers", "homeassistant.helpers.update_coordinator",
-    "aiohttp",
+_ha_helpers = types.ModuleType("homeassistant.helpers")
+_ha_helpers.__path__ = []  # make it a package
+for _mod_name, _mod_obj in [
+    ("homeassistant", types.ModuleType("homeassistant")),
+    ("homeassistant.core", types.ModuleType("homeassistant.core")),
+    ("homeassistant.helpers", _ha_helpers),
+    ("homeassistant.helpers.update_coordinator", types.ModuleType("homeassistant.helpers.update_coordinator")),
+    ("homeassistant.helpers.storage", types.ModuleType("homeassistant.helpers.storage")),
+    ("aiohttp", types.ModuleType("aiohttp")),
 ]:
-    sys.modules.setdefault(_mod, types.ModuleType(_mod))
+    sys.modules.setdefault(_mod_name, _mod_obj)
 
 _ha_core = sys.modules["homeassistant.core"]
 _ha_core.HomeAssistant = object
+
+_ha_storage = sys.modules["homeassistant.helpers.storage"]
+_ha_storage.Store = object
 
 _ha_uc = sys.modules["homeassistant.helpers.update_coordinator"]
 

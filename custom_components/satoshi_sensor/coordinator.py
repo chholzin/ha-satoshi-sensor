@@ -8,17 +8,21 @@ from datetime import timedelta
 import aiohttp
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from .const import (
     COINGECKO_API_URL,
     DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
     GAP_LIMIT,
     MEMPOOL_API_URL,
     MIN_UPDATE_INTERVAL,
     SATOSHIS_PER_BTC,
     XPUB_BATCH_SIZE,
 )
+
+_STORAGE_VERSION = 1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +175,8 @@ class XpubCoordinator(DataUpdateCoordinator):
         self._session: aiohttp.ClientSession | None = None
         self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
         self._consecutive_errors = 0
+        self._cached_addresses: list[str] | None = None
+        self._store = Store(hass, _STORAGE_VERSION, f"{DOMAIN}_xpub_{xpub[:16]}")
         super().__init__(
             hass,
             _LOGGER,
@@ -239,13 +245,42 @@ class XpubCoordinator(DataUpdateCoordinator):
             await self._session.close()
         await super().async_shutdown()
 
+    async def _load_cached_addresses(self) -> list[str] | None:
+        if self._cached_addresses is not None:
+            return self._cached_addresses
+        stored = await self._store.async_load()
+        if stored and isinstance(stored.get("addresses"), list):
+            self._cached_addresses = stored["addresses"]
+            _LOGGER.debug("Loaded %d cached addresses for %s", len(self._cached_addresses), self.xpub[:8])
+            return self._cached_addresses
+        return None
+
+    async def _save_cached_addresses(self, addresses: list[str]) -> None:
+        self._cached_addresses = addresses
+        await self._store.async_save({"addresses": addresses})
+
     async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
         from .xpub import derive_addresses
 
         semaphore = asyncio.Semaphore(5)
         results: dict[str, dict] = {}
+
+        # Try cached addresses first for fast startup
+        cached = await self._load_cached_addresses()
+        if cached:
+            tasks = [_fetch_address_data(session, addr, semaphore) for addr in cached]
+            batch_results = await asyncio.gather(*tasks)
+            for addr, data in zip(cached, batch_results):
+                results[addr] = data
+
+            # Check if we need to scan beyond the cache (new addresses may have been used)
+            max_cached_index = len(cached)
+        else:
+            max_cached_index = 0
+
+        # Full gap-limit scan starting after cached addresses
         gap = 0
-        index = 0
+        index = max_cached_index
 
         while gap < GAP_LIMIT:
             batch = await self.hass.async_add_executor_job(
@@ -262,8 +297,13 @@ class XpubCoordinator(DataUpdateCoordinator):
                     gap = 0
 
                 if gap >= GAP_LIMIT:
-                    return results
+                    break
 
             index += XPUB_BATCH_SIZE
+
+        # Persist all known addresses for next startup
+        all_addresses = list(results.keys())
+        if all_addresses != (cached or []):
+            await self._save_cached_addresses(all_addresses)
 
         return results
