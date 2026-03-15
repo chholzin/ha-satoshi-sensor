@@ -143,6 +143,10 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
         self._reset_backoff()
         balance_satoshi = addr_data["balance"]
         balance_btc = balance_satoshi / SATOSHIS_PER_BTC
+        _LOGGER.debug(
+            "Updated %s: %d sat (%.8f BTC), price %.2f %s",
+            self.address[:8], balance_satoshi, balance_btc, price, self.currency.upper(),
+        )
         return {
             "satoshi": balance_satoshi,
             "btc": balance_btc,
@@ -223,6 +227,10 @@ class XpubCoordinator(DataUpdateCoordinator):
         balance_btc = total_satoshi / SATOSHIS_PER_BTC
         active_count = sum(1 for d in addresses_data.values() if d["tx_count"] > 0)
 
+        _LOGGER.debug(
+            "Updated xpub %s: %d active addresses, %d sat (%.8f BTC), price %.2f %s",
+            self.xpub[:8], active_count, total_satoshi, balance_btc, price, self.currency.upper(),
+        )
         return {
             "satoshi": total_satoshi,
             "btc": balance_btc,
