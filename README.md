@@ -75,13 +75,17 @@ Die Integration leitet automatisch alle Adressen ab und scannt sie mit Gap Limit
 |--------|----------|--------------|
 | `xpub` | BIP44 | Legacy (`1...`) |
 | `ypub` | BIP49 | P2SH-SegWit (`3...`) |
-| `zpub` | BIP84 | Native SegWit (`bc1...`) |
+| `zpub` | BIP84 | Native SegWit (`bc1q...`) |
+
+> **Taproot (BIP86) xpub noch nicht unterstützt.**
+> Für Taproot-HD-Wallets existiert kein standardisierter Key-Präfix — die meisten Wallets exportieren BIP86-Account-Keys als normales `xpub`, was von BIP44 nicht unterscheidbar ist. Taproot-**Einzeladressen** (`bc1p...`) funktionieren dagegen problemlos.
 
 ### Unterstützte Adressformate (Einzeladress-Modus)
 
 - Legacy (`1...`)
 - Pay-to-Script-Hash (`3...`)
-- Native SegWit / Bech32 (`bc1...`)
+- Native SegWit / Bech32 (`bc1q...`)
+- Taproot / Bech32m (`bc1p...`)
 
 ### Einstellungen
 
@@ -165,13 +169,17 @@ The integration will automatically derive all addresses and scan them with a gap
 |--------|----------|----------------|
 | `xpub` | BIP44 | Legacy (`1...`) |
 | `ypub` | BIP49 | P2SH-SegWit (`3...`) |
-| `zpub` | BIP84 | Native SegWit (`bc1...`) |
+| `zpub` | BIP84 | Native SegWit (`bc1q...`) |
+
+> **Taproot (BIP86) xpub not yet supported.**
+> There is no standardized key prefix for Taproot HD wallets — most wallets export BIP86 account keys as a regular `xpub`, which is indistinguishable from BIP44. Taproot **single addresses** (`bc1p...`) work fine however.
 
 ### Supported address formats (single address mode)
 
 - Legacy (`1...`)
 - Pay-to-Script-Hash (`3...`)
-- Native SegWit / Bech32 (`bc1...`)
+- Native SegWit / Bech32 (`bc1q...`)
+- Taproot / Bech32m (`bc1p...`)
 
 ### Options
 
