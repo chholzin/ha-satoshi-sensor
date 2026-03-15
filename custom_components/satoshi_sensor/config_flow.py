@@ -1,10 +1,13 @@
 """Config flow for Satoshi Sensor."""
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any
 
 import voluptuous as vol
+
+_LOGGER = logging.getLogger(__name__)
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.data_entry_flow import FlowResult
@@ -105,7 +108,8 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 try:
                     await self.hass.async_add_executor_job(_test_derive, xpub)
-                except Exception:
+                except Exception as exc:
+                    _LOGGER.exception("xpub derivation failed: %s", exc)
                     errors[CONF_XPUB] = "invalid_xpub"
 
             if not errors:
