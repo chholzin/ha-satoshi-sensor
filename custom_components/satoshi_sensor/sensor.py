@@ -54,6 +54,7 @@ async def async_setup_entry(
         FiatValueSensor(coordinator, entry, identifier, label),
         PriceChange24hSensor(coordinator, entry, identifier, label),
         UnconfirmedBalanceSensor(coordinator, entry, identifier, label),
+        TransactionCountSensor(coordinator, entry, identifier, label),
     ]
     if is_xpub:
         entities.append(AddressCountSensor(coordinator, entry, identifier, label))
@@ -222,6 +223,22 @@ class UnconfirmedBalanceSensor(_BaseSensor):
     def native_value(self) -> int | None:
         if self.coordinator.data:
             return self.coordinator.data["unconfirmed_satoshi"]
+        return None
+
+
+class TransactionCountSensor(_BaseSensor):
+    _attr_name = "Transactions"
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:swap-horizontal"
+
+    def __init__(self, coordinator, entry, identifier, label):
+        super().__init__(coordinator, entry, identifier, label)
+        self._attr_unique_id = f"{DOMAIN}_{identifier}_tx_count"
+
+    @property
+    def native_value(self) -> int | None:
+        if self.coordinator.data:
+            return self.coordinator.data.get("tx_count")
         return None
 
 

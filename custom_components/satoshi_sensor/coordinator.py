@@ -155,6 +155,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             "price": price,
             "price_change_24h": price_change_24h,
             "unconfirmed_satoshi": addr_data["unconfirmed"],
+            "tx_count": addr_data["tx_count"],
         }
 
     async def async_shutdown(self) -> None:
@@ -226,6 +227,7 @@ class XpubCoordinator(DataUpdateCoordinator):
         total_unconfirmed = sum(d["unconfirmed"] for d in addresses_data.values())
         balance_btc = total_satoshi / SATOSHIS_PER_BTC
         active_count = sum(1 for d in addresses_data.values() if d["tx_count"] > 0)
+        total_tx_count = sum(d["tx_count"] for d in addresses_data.values())
 
         _LOGGER.debug(
             "Updated xpub %s: %d active addresses, %d sat (%.8f BTC), price %.2f %s",
@@ -239,6 +241,7 @@ class XpubCoordinator(DataUpdateCoordinator):
             "price": price,
             "price_change_24h": price_change_24h,
             "unconfirmed_satoshi": total_unconfirmed,
+            "tx_count": total_tx_count,
             "address_count": active_count,
             "addresses": {
                 addr: d["balance"]
