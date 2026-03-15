@@ -138,15 +138,30 @@ class BtcBalanceSensor(_BaseSensor):
         return None
 
 
+_CURRENCY_ICON = {
+    "EUR": "mdi:currency-eur",
+    "USD": "mdi:currency-usd",
+    "GBP": "mdi:currency-gbp",
+}
+_DEFAULT_CURRENCY_ICON = "mdi:cash"
+
+
 class FiatValueSensor(_BaseSensor):
     _attr_name = "Value"
     _attr_device_class = SensorDeviceClass.MONETARY
     _attr_suggested_display_precision = 2
-    _attr_icon = "mdi:currency-eur"
 
     def __init__(self, coordinator, entry, identifier, label):
         super().__init__(coordinator, entry, identifier, label)
         self._attr_unique_id = f"{DOMAIN}_{identifier}_fiat"
+
+    @property
+    def icon(self) -> str:
+        if self.coordinator.data:
+            return _CURRENCY_ICON.get(
+                self.coordinator.data["currency"], _DEFAULT_CURRENCY_ICON
+            )
+        return _DEFAULT_CURRENCY_ICON
 
     @property
     def native_unit_of_measurement(self) -> str | None:
