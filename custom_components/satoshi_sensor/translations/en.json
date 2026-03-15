@@ -1,0 +1,33 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Bitcoin Wallet",
+        "description": "Enter a Bitcoin wallet address (Legacy, SegWit or Native SegWit).",
+        "data": {
+          "address": "Bitcoin Address",
+          "label": "Name / Label (optional)",
+          "currency": "Fiat Currency"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "Invalid Bitcoin address. Must start with 1, 3 or bc1.",
+      "already_configured": "This address is already configured."
+    },
+    "abort": {
+      "already_configured": "This wallet address is already set up."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Settings",
+        "data": {
+          "currency": "Fiat Currency",
+          "scan_interval": "Update interval (seconds)"
+        }
+      }
+    }
+  }
+}
