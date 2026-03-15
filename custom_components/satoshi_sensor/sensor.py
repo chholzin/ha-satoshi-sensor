@@ -162,15 +162,20 @@ class FiatValueSensor(_BaseSensor):
 
 
 class PriceChange24hSensor(_BaseSensor):
-    _attr_name = "BTC Preisänderung 24h"
+    _attr_name = "BTC Price Change 24h"
     _attr_native_unit_of_measurement = "%"
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
-    _attr_icon = "mdi:trending-up"
 
     def __init__(self, coordinator, entry, identifier, label):
         super().__init__(coordinator, entry, identifier, label)
         self._attr_unique_id = f"{DOMAIN}_{identifier}_price_change_24h"
+
+    @property
+    def icon(self) -> str:
+        if self.coordinator.data and self.coordinator.data.get("price_change_24h", 0) < 0:
+            return "mdi:trending-down"
+        return "mdi:trending-up"
 
     @property
     def native_value(self) -> float | None:
