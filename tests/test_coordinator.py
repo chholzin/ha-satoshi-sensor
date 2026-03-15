@@ -16,8 +16,9 @@ sys.modules.setdefault(_pkg_name, types.ModuleType(_pkg_name))
 
 _const = types.ModuleType(f"{_pkg_name}.const")
 for _k, _v in {
-    "COINGECKO_API_URL": "", "DEFAULT_UPDATE_INTERVAL": 300, "DOMAIN": "satoshi_sensor",
-    "GAP_LIMIT": 20, "MEMPOOL_API_URL": "", "MIN_UPDATE_INTERVAL": 60,
+    "COINGECKO_API_URL": "", "DEFAULT_MEMPOOL_URL": "https://mempool.space/api",
+    "DEFAULT_UPDATE_INTERVAL": 300, "DOMAIN": "satoshi_sensor",
+    "GAP_LIMIT": 20, "MIN_UPDATE_INTERVAL": 60,
     "SATOSHIS_PER_BTC": SATOSHIS_PER_BTC, "XPUB_BATCH_SIZE": 20,
 }.items():
     setattr(_const, _k, _v)

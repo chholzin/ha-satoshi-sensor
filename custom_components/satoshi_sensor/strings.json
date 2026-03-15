@@ -29,7 +29,8 @@
         "title": "Einstellungen",
         "data": {
           "currency": "Fiat-Währung",
-          "scan_interval": "Aktualisierungsintervall (Sekunden)"
+          "scan_interval": "Aktualisierungsintervall (Sekunden)",
+          "mempool_url": "Mempool-API-URL (Standard: mempool.space)"
         }
       }
     }

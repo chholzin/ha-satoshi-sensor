@@ -14,10 +14,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     COINGECKO_API_URL,
+    DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     GAP_LIMIT,
-    MEMPOOL_API_URL,
     MIN_UPDATE_INTERVAL,
     SATOSHIS_PER_BTC,
     XPUB_BATCH_SIZE,
@@ -60,9 +60,10 @@ async def _fetch_address_data(
     session: aiohttp.ClientSession,
     address: str,
     semaphore: asyncio.Semaphore,
+    mempool_base_url: str = DEFAULT_MEMPOOL_URL,
 ) -> dict:
     async with semaphore:
-        url = MEMPOOL_API_URL.format(address=address)
+        url = f"{mempool_base_url.rstrip('/')}/address/{address}"
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
                 raise UpdateFailed(_classify_http_error(resp.status, f"mempool.space ({address[:8]}…)"))
@@ -99,9 +100,11 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
         address: str,
         currency: str,
         update_interval: int = DEFAULT_UPDATE_INTERVAL,
+        mempool_url: str = DEFAULT_MEMPOOL_URL,
     ) -> None:
         self.address = address
         self.currency = currency.lower()
+        self._mempool_url = mempool_url
         self._session: aiohttp.ClientSession | None = None
         self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
         self._consecutive_errors = 0
@@ -132,7 +135,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             self._session = aiohttp.ClientSession()
         try:
             semaphore = asyncio.Semaphore(1)
-            addr_data = await _fetch_address_data(self._session, self.address, semaphore)
+            addr_data = await _fetch_address_data(self._session, self.address, semaphore, self._mempool_url)
             price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
             self._apply_backoff()
@@ -175,9 +178,11 @@ class XpubCoordinator(DataUpdateCoordinator):
         xpub: str,
         currency: str,
         update_interval: int = DEFAULT_UPDATE_INTERVAL,
+        mempool_url: str = DEFAULT_MEMPOOL_URL,
     ) -> None:
         self.xpub = xpub
         self.currency = currency.lower()
+        self._mempool_url = mempool_url
         self._session: aiohttp.ClientSession | None = None
         self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
         self._consecutive_errors = 0
@@ -292,7 +297,7 @@ class XpubCoordinator(DataUpdateCoordinator):
 
         # Fetch cached addresses first
         if cached_addrs:
-            tasks = [_fetch_address_data(session, addr, semaphore) for addr in cached_addrs]
+            tasks = [_fetch_address_data(session, addr, semaphore, self._mempool_url) for addr in cached_addrs]
             batch_results = await asyncio.gather(*tasks)
             for addr, data in zip(cached_addrs, batch_results):
                 results[addr] = data
@@ -305,7 +310,7 @@ class XpubCoordinator(DataUpdateCoordinator):
             batch = await self.hass.async_add_executor_job(
                 partial(derive_addresses, self.xpub, index, XPUB_BATCH_SIZE, chain=chain)
             )
-            tasks = [_fetch_address_data(session, addr, semaphore) for addr in batch]
+            tasks = [_fetch_address_data(session, addr, semaphore, self._mempool_url) for addr in batch]
             batch_results = await asyncio.gather(*tasks)
 
             for addr, data in zip(batch, batch_results):

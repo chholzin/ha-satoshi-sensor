@@ -19,9 +19,11 @@ from .const import (
     CONF_CURRENCY,
     CONF_ENTRY_TYPE,
     CONF_LABEL,
+    CONF_MEMPOOL_URL,
     CONF_SCAN_INTERVAL,
     CONF_XPUB,
     DEFAULT_CURRENCY,
+    DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     ENTRY_TYPE_ADDRESS,
@@ -156,6 +158,9 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
         current_interval = self.config_entry.options.get(
             CONF_SCAN_INTERVAL, self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL)
         )
+        current_mempool = self.config_entry.options.get(
+            CONF_MEMPOOL_URL, self.config_entry.data.get(CONF_MEMPOOL_URL, DEFAULT_MEMPOOL_URL)
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -166,6 +171,7 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
                     vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
                         int, vol.Range(min=MIN_UPDATE_INTERVAL)
                     ),
+                    vol.Optional(CONF_MEMPOOL_URL, default=current_mempool): str,
                 }
             ),
         )
