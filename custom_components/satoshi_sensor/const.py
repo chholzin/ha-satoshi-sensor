@@ -16,7 +16,7 @@ SUPPORTED_CURRENCIES = ["eur", "usd", "chf", "gbp"]
 MEMPOOL_API_URL = "https://mempool.space/api/address/{address}"
 COINGECKO_API_URL = (
     "https://api.coingecko.com/api/v3/simple/price"
-    "?ids=bitcoin&vs_currencies={currency}"
+    "?ids=bitcoin&vs_currencies={currency}&include_24hr_change=true"
 )
 
 SATOSHIS_PER_BTC = 100_000_000

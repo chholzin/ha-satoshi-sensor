@@ -30,6 +30,7 @@ async def async_setup_entry(
             SatoshiBalanceSensor(coordinator, entry, address, label),
             BtcBalanceSensor(coordinator, entry, address, label),
             FiatValueSensor(coordinator, entry, address, label),
+            PriceChange24hSensor(coordinator, entry, address, label),
         ]
     )
 
@@ -92,6 +93,30 @@ class BtcBalanceSensor(_BaseSensor):
         if self.coordinator.data:
             return self.coordinator.data["btc"]
         return None
+
+
+class PriceChange24hSensor(_BaseSensor):
+    _attr_name = "BTC Preisänderung 24h"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:trending-up"
+
+    def __init__(self, coordinator, entry, address, label):
+        super().__init__(coordinator, entry, address, label)
+        self._attr_unique_id = f"{DOMAIN}_{address}_price_change_24h"
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data:
+            return self.coordinator.data["price_change_24h"]
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data:
+            return {"btc_price": self.coordinator.data["price"], "currency": self.coordinator.data["currency"]}
+        return {}
 
 
 class FiatValueSensor(_BaseSensor):
