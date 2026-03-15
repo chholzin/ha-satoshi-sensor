@@ -7,7 +7,9 @@ CONF_LABEL = "label"
 CONF_CURRENCY = "currency"
 
 DEFAULT_CURRENCY = "eur"
+CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_UPDATE_INTERVAL = 300  # seconds
+MIN_UPDATE_INTERVAL = 60  # seconds
 
 SUPPORTED_CURRENCIES = ["eur", "usd", "chf", "gbp"]
 

@@ -14,6 +14,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     MEMPOOL_API_URL,
     SATOSHIS_PER_BTC,
+    MIN_UPDATE_INTERVAL,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,14 +23,17 @@ _LOGGER = logging.getLogger(__name__)
 class SatoshiSensorCoordinator(DataUpdateCoordinator):
     """Fetch BTC balance and price data."""
 
-    def __init__(self, hass: HomeAssistant, address: str, currency: str) -> None:
+    def __init__(
+        self, hass: HomeAssistant, address: str, currency: str, update_interval: int = DEFAULT_UPDATE_INTERVAL
+    ) -> None:
         self.address = address
         self.currency = currency.lower()
+        interval = max(update_interval, MIN_UPDATE_INTERVAL)
         super().__init__(
             hass,
             _LOGGER,
             name=f"satoshi_sensor_{address[:8]}",
-            update_interval=timedelta(seconds=DEFAULT_UPDATE_INTERVAL),
+            update_interval=timedelta(seconds=interval),
         )
 
     async def _async_update_data(self) -> dict:

@@ -13,8 +13,11 @@ from .const import (
     CONF_ADDRESS,
     CONF_CURRENCY,
     CONF_LABEL,
+    CONF_SCAN_INTERVAL,
     DEFAULT_CURRENCY,
+    DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    MIN_UPDATE_INTERVAL,
     SUPPORTED_CURRENCIES,
 )
 
@@ -84,13 +87,19 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
         current_currency = self._entry.options.get(
             CONF_CURRENCY, self._entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY)
         )
+        current_interval = self._entry.options.get(
+            CONF_SCAN_INTERVAL, self._entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL)
+        )
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_CURRENCY, default=current_currency): vol.In(
                         SUPPORTED_CURRENCIES
-                    )
+                    ),
+                    vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
+                        int, vol.Range(min=MIN_UPDATE_INTERVAL)
+                    ),
                 }
             ),
         )
