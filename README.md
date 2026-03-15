@@ -19,7 +19,7 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
   - **BTC Preisänderung 24h** — Preisänderung in % über 24 Stunden
   - **Unbestätigtes Guthaben** — ausstehende unbestätigte Transaktionen in Satoshi
   - **Aktive Adressen** *(nur HD Wallet)* — Anzahl Adressen mit Transaktionshistorie
-- HD-Wallet-Sensor zeigt alle Einzeladressen mit Guthaben als Sensor-Attribute
+- HD-Wallet: alle verwendeten Adressen mit Guthaben als Sensor-Attribute abrufbar
 - Konfigurierbares Aktualisierungsintervall (Standard: 5 min, Minimum: 1 min)
 - Datenquellen: [mempool.space](https://mempool.space) (Guthaben) und [CoinGecko](https://coingecko.com) (Preis)
 - Kein API-Key erforderlich
@@ -42,23 +42,13 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
 
 ### Konfiguration
 
-#### Einzelne Adresse
-
 1. **Einstellungen → Geräte & Dienste → Integration hinzufügen**
 2. Nach **Satoshi Sensor** suchen
-3. Typ **address** auswählen
-4. Bitcoin-Adresse und optional ein Label eingeben
+3. Bitcoin-Adresse **oder** Extended Public Key eingeben — die Integration erkennt den Typ automatisch
+4. Optional ein Label vergeben
 5. Fiat-Währung wählen (Standard: EUR)
 
-#### HD Wallet (Hardware Wallet via xpub)
-
-1. **Einstellungen → Geräte & Dienste → Integration hinzufügen**
-2. Nach **Satoshi Sensor** suchen
-3. Typ **xpub** auswählen
-4. Extended Public Key (`xpub`, `ypub` oder `zpub`) und optional ein Label eingeben
-5. Fiat-Währung wählen
-
-Die Integration leitet automatisch alle Adressen ab und scannt sie mit Gap Limit 20 (BIP44-Standard). Bis zu 5 parallele API-Anfragen.
+Die Integration leitet bei xpub/ypub/zpub automatisch alle Adressen ab und scannt sie mit Gap Limit 20 (BIP44-Standard). Bis zu 5 parallele API-Anfragen.
 
 #### Wo findet man den xpub?
 
@@ -77,6 +67,8 @@ Die Integration leitet automatisch alle Adressen ab und scannt sie mit Gap Limit
 | `ypub` | BIP49 | P2SH-SegWit (`3...`) |
 | `zpub` | BIP84 | Native SegWit (`bc1q...`) |
 
+> **Hinweis:** xpub, ypub und zpub repräsentieren verschiedene BIP32-Accounts mit unterschiedlichen Schlüsseln (m/44'/0'/0', m/49'/0'/0', m/84'/0'/0'). Sie lassen sich kryptographisch **nicht** ineinander umrechnen. Wer mehrere Adresstypen überwachen möchte, muss den jeweiligen Key separat aus der Hardware-Wallet exportieren und als eigenen Eintrag hinzufügen.
+
 > **Taproot (BIP86) xpub noch nicht unterstützt.**
 > Für Taproot-HD-Wallets existiert kein standardisierter Key-Präfix — die meisten Wallets exportieren BIP86-Account-Keys als normales `xpub`, was von BIP44 nicht unterscheidbar ist. Taproot-**Einzeladressen** (`bc1p...`) funktionieren dagegen problemlos.
 
@@ -86,6 +78,32 @@ Die Integration leitet automatisch alle Adressen ab und scannt sie mit Gap Limit
 - Pay-to-Script-Hash (`3...`)
 - Native SegWit / Bech32 (`bc1q...`)
 - Taproot / Bech32m (`bc1p...`)
+
+### Verwendete Adressen abrufen (HD Wallet)
+
+Der **Balance (Satoshi)**-Sensor eines HD-Wallet-Eintrags enthält als Attribut `addresses` ein Dictionary aller verwendeten Adressen mit ihrem Guthaben in Satoshi — also alle Adressen, die mindestens eine Transaktion hatten.
+
+In den **Entwicklerwerkzeugen → Zustände** sieht das z. B. so aus:
+
+```yaml
+# sensor.btc_wallet_mein_wallet_satoshi
+addresses:
+  bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu: 150000
+  bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g: 320000
+```
+
+In Templates und Automationen:
+
+```yaml
+{{ state_attr('sensor.btc_wallet_mein_wallet_satoshi', 'addresses') }}
+```
+
+Einzelnes Guthaben einer bestimmten Adresse abfragen:
+
+```yaml
+{{ state_attr('sensor.btc_wallet_mein_wallet_satoshi', 'addresses')
+   .get('bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu', 0) }}
+```
 
 ### Einstellungen
 
@@ -113,7 +131,7 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
   - **BTC Price Change 24h** — 24-hour BTC price change in %
   - **Unconfirmed Balance** — pending unconfirmed balance in satoshis
   - **Active Addresses** *(HD wallet only)* — number of addresses with transaction history
-- HD wallet sensor shows all individual address balances as state attributes
+- HD wallet: all used addresses with balances accessible as sensor attributes
 - Configurable update interval (default: 5 min, minimum: 1 min)
 - Data sourced from [mempool.space](https://mempool.space) (balance) and [CoinGecko](https://coingecko.com) (price)
 - No API key required
@@ -136,23 +154,13 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
 
 ### Configuration
 
-#### Single Address
-
 1. Go to **Settings → Devices & Services → Add Integration**
 2. Search for **Satoshi Sensor**
-3. Select type: **address**
-4. Enter your Bitcoin address and an optional label
+3. Enter a Bitcoin address **or** an Extended Public Key — the integration detects the type automatically
+4. Optionally enter a label
 5. Select your preferred fiat currency (default: EUR)
 
-#### HD Wallet (Hardware Wallet via xpub)
-
-1. Go to **Settings → Devices & Services → Add Integration**
-2. Search for **Satoshi Sensor**
-3. Select type: **xpub**
-4. Enter your Extended Public Key (`xpub`, `ypub`, or `zpub`) and an optional label
-5. Select your preferred fiat currency
-
-The integration will automatically derive all addresses and scan them with a gap limit of 20 (BIP44 standard). Up to 5 parallel API requests are used.
+The integration will automatically derive all addresses for xpub/ypub/zpub entries and scan them with a gap limit of 20 (BIP44 standard). Up to 5 parallel API requests are used.
 
 #### Where to find your xpub
 
@@ -171,6 +179,8 @@ The integration will automatically derive all addresses and scan them with a gap
 | `ypub` | BIP49 | P2SH-SegWit (`3...`) |
 | `zpub` | BIP84 | Native SegWit (`bc1q...`) |
 
+> **Note:** xpub, ypub and zpub represent different BIP32 accounts with different key material (m/44'/0'/0', m/49'/0'/0', m/84'/0'/0'). They are cryptographically **independent** and cannot be derived from each other. To monitor multiple address types, export each key separately from your hardware wallet and add it as its own entry.
+
 > **Taproot (BIP86) xpub not yet supported.**
 > There is no standardized key prefix for Taproot HD wallets — most wallets export BIP86 account keys as a regular `xpub`, which is indistinguishable from BIP44. Taproot **single addresses** (`bc1p...`) work fine however.
 
@@ -180,6 +190,32 @@ The integration will automatically derive all addresses and scan them with a gap
 - Pay-to-Script-Hash (`3...`)
 - Native SegWit / Bech32 (`bc1q...`)
 - Taproot / Bech32m (`bc1p...`)
+
+### Accessing used addresses (HD wallet)
+
+The **Balance (Satoshi)** sensor of an HD wallet entry exposes an `addresses` attribute — a dictionary of all used addresses (those with at least one transaction) and their balance in satoshis.
+
+In **Developer Tools → States** it looks like this:
+
+```yaml
+# sensor.btc_wallet_my_wallet_satoshi
+addresses:
+  bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu: 150000
+  bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g: 320000
+```
+
+In templates and automations:
+
+```yaml
+{{ state_attr('sensor.btc_wallet_my_wallet_satoshi', 'addresses') }}
+```
+
+Query the balance of a specific address:
+
+```yaml
+{{ state_attr('sensor.btc_wallet_my_wallet_satoshi', 'addresses')
+   .get('bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu', 0) }}
+```
 
 ### Options
 
