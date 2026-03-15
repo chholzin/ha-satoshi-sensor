@@ -188,44 +188,19 @@ def _p2wpkh(pub: bytes) -> str:
 
 _ADDR_FN = {"xpub": _p2pkh, "ypub": _p2sh_p2wpkh, "zpub": _p2wpkh}
 
-# Version bytes to re-encode any xpub/ypub/zpub payload as a different type
-_XPUB_VERSION_BYTES = {
-    "xpub": b"\x04\x88\xb2\x1e",
-    "ypub": b"\x04\x9d\x7c\xb2",
-    "zpub": b"\x04\xb2\x47\x46",
-}
-
-# (type_key, label, addr_fn) — the 3 standard derivation types
-ADDRESS_TYPES: list[tuple[str, str, object]] = [
-    ("legacy",        "Legacy",       _p2pkh),
-    ("segwit",        "SegWit",       _p2sh_p2wpkh),
-    ("native_segwit", "Native SegWit", _p2wpkh),
-]
-
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def is_xpub(value: str) -> bool:
     return value[:4].lower() in _ADDR_FN
 
 
-def convert_xpub(xpub: str, target: str) -> str:
-    """Re-encode an xpub/ypub/zpub with different version bytes (same key material)."""
-    payload = _b58check_decode(xpub)
-    return _b58check_encode(_XPUB_VERSION_BYTES[target] + payload[4:])
-
-
-def derive_addresses(xpub: str, start: int, count: int, addr_fn=None) -> list[str]:
-    """Derive `count` external-chain addresses starting at index `start`.
-
-    addr_fn overrides the address encoding; if None, it is inferred from the xpub prefix.
-    """
+def derive_addresses(xpub: str, start: int, count: int) -> list[str]:
+    """Derive `count` external-chain addresses starting at index `start`."""
     prefix = xpub[:4].lower()
     if prefix not in _ADDR_FN:
         raise ValueError(f"Unsupported prefix: {prefix!r}. Expected one of {XPUB_PREFIXES}.")
 
-    if addr_fn is None:
-        addr_fn = _ADDR_FN[prefix]
-
+    addr_fn = _ADDR_FN[prefix]
     account_pub, account_chain = _parse_xpub(xpub)
 
     # Derive external chain key (m/.../0)

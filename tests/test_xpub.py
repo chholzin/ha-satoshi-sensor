@@ -30,7 +30,6 @@ _p2pkh = _xpub_mod._p2pkh
 _p2sh_p2wpkh = _xpub_mod._p2sh_p2wpkh
 _p2wpkh = _xpub_mod._p2wpkh
 derive_addresses = _xpub_mod.derive_addresses
-convert_xpub = _xpub_mod.convert_xpub
 is_xpub = _xpub_mod.is_xpub
 
 
@@ -174,41 +173,3 @@ class TestDeriveAddresses:
 
     def test_empty_derivation(self):
         assert derive_addresses(ZPUB_BIP84, 0, 0) == []
-
-
-# ── convert_xpub ──────────────────────────────────────────────────────────────
-
-class TestConvertXpub:
-    def test_zpub_to_zpub_roundtrip(self):
-        """Converting zpub→zpub returns the original key."""
-        assert convert_xpub(ZPUB_BIP84, "zpub") == ZPUB_BIP84
-
-    def test_zpub_to_xpub_same_key_material(self):
-        """xpub and zpub of the same account share pubkey and chaincode."""
-        as_xpub = convert_xpub(ZPUB_BIP84, "xpub")
-        assert as_xpub.startswith("xpub")
-        # Key material (bytes 4..78) must be identical
-        payload_z = _b58check_decode(ZPUB_BIP84)
-        payload_x = _b58check_decode(as_xpub)
-        assert payload_z[4:] == payload_x[4:]
-
-    def test_converted_xpub_derives_legacy_addresses(self):
-        """Addresses derived from convert_xpub(zpub,'xpub') start with '1'."""
-        as_xpub = convert_xpub(ZPUB_BIP84, "xpub")
-        addrs = derive_addresses(as_xpub, 0, 3)
-        for addr in addrs:
-            assert addr.startswith("1"), f"Expected legacy 1…, got {addr}"
-
-    def test_converted_ypub_derives_segwit_addresses(self):
-        """Addresses derived from convert_xpub(zpub,'ypub') start with '3'."""
-        as_ypub = convert_xpub(ZPUB_BIP84, "ypub")
-        addrs = derive_addresses(as_ypub, 0, 3)
-        for addr in addrs:
-            assert addr.startswith("3"), f"Expected SegWit 3…, got {addr}"
-
-    def test_all_three_types_differ(self):
-        """Legacy, SegWit, and Native SegWit addresses at index 0 are all different."""
-        legacy = derive_addresses(convert_xpub(ZPUB_BIP84, "xpub"), 0, 1)[0]
-        segwit = derive_addresses(convert_xpub(ZPUB_BIP84, "ypub"), 0, 1)[0]
-        native = derive_addresses(ZPUB_BIP84, 0, 1)[0]
-        assert len({legacy, segwit, native}) == 3
