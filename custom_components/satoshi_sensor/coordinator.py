@@ -23,11 +23,19 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _classify_http_error(status: int, source: str) -> str:
+    if status == 429:
+        return f"{source} rate limit exceeded (HTTP 429) — consider increasing the update interval"
+    if 500 <= status < 600:
+        return f"{source} server error (HTTP {status}) — the API may be temporarily unavailable"
+    return f"{source} returned HTTP {status}"
+
+
 async def _fetch_price(session: aiohttp.ClientSession, currency: str) -> tuple[float, float]:
     url = COINGECKO_API_URL.format(currency=currency)
     async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
         if resp.status != 200:
-            raise UpdateFailed(f"CoinGecko returned HTTP {resp.status}")
+            raise UpdateFailed(_classify_http_error(resp.status, "CoinGecko"))
         try:
             data = await resp.json()
         except (ValueError, aiohttp.ContentTypeError) as err:
@@ -52,7 +60,7 @@ async def _fetch_address_data(
         url = MEMPOOL_API_URL.format(address=address)
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
-                raise UpdateFailed(f"mempool.space returned HTTP {resp.status} for {address}")
+                raise UpdateFailed(_classify_http_error(resp.status, f"mempool.space ({address[:8]}…)"))
             try:
                 data = await resp.json()
             except (ValueError, aiohttp.ContentTypeError) as err:
@@ -74,6 +82,9 @@ async def _fetch_address_data(
     }
 
 
+_MAX_BACKOFF_MULTIPLIER = 4
+
+
 class SatoshiSensorCoordinator(DataUpdateCoordinator):
     """Fetch data for a single BTC address."""
 
@@ -87,12 +98,29 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
         self.address = address
         self.currency = currency.lower()
         self._session: aiohttp.ClientSession | None = None
+        self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
+        self._consecutive_errors = 0
         super().__init__(
             hass,
             _LOGGER,
             name=f"satoshi_sensor_{address[:8]}",
-            update_interval=timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL)),
+            update_interval=self._base_interval,
         )
+
+    def _apply_backoff(self) -> None:
+        self._consecutive_errors += 1
+        multiplier = min(2 ** self._consecutive_errors, _MAX_BACKOFF_MULTIPLIER)
+        self.update_interval = self._base_interval * multiplier
+        _LOGGER.warning(
+            "Update failed (%s consecutive errors), next retry in %s",
+            self._consecutive_errors,
+            self.update_interval,
+        )
+
+    def _reset_backoff(self) -> None:
+        if self._consecutive_errors > 0:
+            self._consecutive_errors = 0
+            self.update_interval = self._base_interval
 
     async def _async_update_data(self) -> dict:
         if self._session is None or self._session.closed:
@@ -102,8 +130,13 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             addr_data = await _fetch_address_data(self._session, self.address, semaphore)
             price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
+            self._apply_backoff()
             raise UpdateFailed(f"Network error: {err}") from err
+        except UpdateFailed:
+            self._apply_backoff()
+            raise
 
+        self._reset_backoff()
         balance_satoshi = addr_data["balance"]
         balance_btc = balance_satoshi / SATOSHIS_PER_BTC
         return {
@@ -136,12 +169,29 @@ class XpubCoordinator(DataUpdateCoordinator):
         self.xpub = xpub
         self.currency = currency.lower()
         self._session: aiohttp.ClientSession | None = None
+        self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
+        self._consecutive_errors = 0
         super().__init__(
             hass,
             _LOGGER,
             name=f"satoshi_sensor_xpub_{xpub[:8]}",
-            update_interval=timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL)),
+            update_interval=self._base_interval,
         )
+
+    def _apply_backoff(self) -> None:
+        self._consecutive_errors += 1
+        multiplier = min(2 ** self._consecutive_errors, _MAX_BACKOFF_MULTIPLIER)
+        self.update_interval = self._base_interval * multiplier
+        _LOGGER.warning(
+            "Update failed (%s consecutive errors), next retry in %s",
+            self._consecutive_errors,
+            self.update_interval,
+        )
+
+    def _reset_backoff(self) -> None:
+        if self._consecutive_errors > 0:
+            self._consecutive_errors = 0
+            self.update_interval = self._base_interval
 
     async def _async_update_data(self) -> dict:
         if self._session is None or self._session.closed:
@@ -155,8 +205,13 @@ class XpubCoordinator(DataUpdateCoordinator):
                 raise UpdateFailed("xpub address scan timed out after 180 s") from err
             price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
+            self._apply_backoff()
             raise UpdateFailed(f"Network error: {err}") from err
+        except UpdateFailed:
+            self._apply_backoff()
+            raise
 
+        self._reset_backoff()
         total_satoshi = sum(d["balance"] for d in addresses_data.values())
         total_unconfirmed = sum(d["unconfirmed"] for d in addresses_data.values())
         balance_btc = total_satoshi / SATOSHIS_PER_BTC

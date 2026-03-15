@@ -1,7 +1,61 @@
 """Tests for coordinator data processing logic."""
+import importlib.util
+import os
+import sys
+import types
+from datetime import timedelta
+
 import pytest
 
 SATOSHIS_PER_BTC = 100_000_000
+
+# Load _classify_http_error from coordinator without HA imports
+_pkg_name = "custom_components.satoshi_sensor"
+sys.modules.setdefault("custom_components", types.ModuleType("custom_components"))
+sys.modules.setdefault(_pkg_name, types.ModuleType(_pkg_name))
+
+_const = types.ModuleType(f"{_pkg_name}.const")
+for _k, _v in {
+    "COINGECKO_API_URL": "", "DEFAULT_UPDATE_INTERVAL": 300, "GAP_LIMIT": 20,
+    "MEMPOOL_API_URL": "", "MIN_UPDATE_INTERVAL": 60, "SATOSHIS_PER_BTC": SATOSHIS_PER_BTC,
+    "XPUB_BATCH_SIZE": 20,
+}.items():
+    setattr(_const, _k, _v)
+sys.modules[f"{_pkg_name}.const"] = _const
+
+# Stub HA modules
+for _mod in [
+    "homeassistant", "homeassistant.core",
+    "homeassistant.helpers", "homeassistant.helpers.update_coordinator",
+    "aiohttp",
+]:
+    sys.modules.setdefault(_mod, types.ModuleType(_mod))
+
+_ha_core = sys.modules["homeassistant.core"]
+_ha_core.HomeAssistant = object
+
+_ha_uc = sys.modules["homeassistant.helpers.update_coordinator"]
+
+
+class _FakeCoordinator:
+    pass
+
+
+class _FakeUpdateFailed(Exception):
+    pass
+
+
+_ha_uc.DataUpdateCoordinator = _FakeCoordinator
+_ha_uc.UpdateFailed = _FakeUpdateFailed
+
+_coord_path = os.path.join(os.path.dirname(__file__), "..", "custom_components", "satoshi_sensor", "coordinator.py")
+_coord_spec = importlib.util.spec_from_file_location(f"{_pkg_name}.coordinator", _coord_path)
+_coord_mod = importlib.util.module_from_spec(_coord_spec)
+sys.modules[f"{_pkg_name}.coordinator"] = _coord_mod
+_coord_spec.loader.exec_module(_coord_mod)
+
+_classify_http_error = _coord_mod._classify_http_error
+_MAX_BACKOFF_MULTIPLIER = _coord_mod._MAX_BACKOFF_MULTIPLIER
 
 
 def _compute(satoshi: int, price: float, price_change: float, unconfirmed: int, currency: str) -> dict:
@@ -82,3 +136,40 @@ class TestXpubAggregation:
         assert "addr1" in active
         assert "addr3" in active
         assert "addr2" not in active
+
+
+class TestClassifyHttpError:
+    def test_rate_limit_429(self):
+        msg = _classify_http_error(429, "CoinGecko")
+        assert "rate limit" in msg.lower()
+        assert "429" in msg
+
+    def test_server_error_500(self):
+        msg = _classify_http_error(500, "mempool.space")
+        assert "server error" in msg.lower()
+        assert "500" in msg
+
+    def test_server_error_503(self):
+        msg = _classify_http_error(503, "CoinGecko")
+        assert "server error" in msg.lower()
+
+    def test_generic_error(self):
+        msg = _classify_http_error(403, "CoinGecko")
+        assert "HTTP 403" in msg
+
+
+class TestBackoffLogic:
+    def test_multiplier_capped(self):
+        assert _MAX_BACKOFF_MULTIPLIER == 4
+
+    def test_backoff_doubles(self):
+        """Simulates the backoff calculation: 2^1=2, 2^2=4, 2^3=8→capped to 4."""
+        base = timedelta(seconds=300)
+        results = []
+        for errors in range(1, 5):
+            multiplier = min(2 ** errors, _MAX_BACKOFF_MULTIPLIER)
+            results.append(base * multiplier)
+        assert results[0] == timedelta(seconds=600)   # 2x
+        assert results[1] == timedelta(seconds=1200)  # 4x
+        assert results[2] == timedelta(seconds=1200)  # capped at 4x
+        assert results[3] == timedelta(seconds=1200)  # still capped
