@@ -33,6 +33,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+_CONF_WALLET = "wallet"
+
 BTC_ADDRESS_RE = re.compile(r"^(1|3|bc1)[a-zA-HJ-NP-Z0-9]{25,87}$")
 
 
@@ -51,90 +53,52 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            if user_input[CONF_ENTRY_TYPE] == ENTRY_TYPE_XPUB:
-                return await self.async_step_xpub()
-            return await self.async_step_address()
+            wallet = user_input[_CONF_WALLET].strip()
+            label = user_input.get(CONF_LABEL, "").strip()
+            currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+
+            if _validate_xpub(wallet):
+                try:
+                    await self.hass.async_add_executor_job(_test_derive, wallet)
+                except Exception as exc:
+                    _LOGGER.exception("xpub derivation failed: %s", exc)
+                    errors[_CONF_WALLET] = "invalid_xpub"
+
+                if not errors:
+                    await self.async_set_unique_id(f"xpub_{wallet}")
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=label or wallet[:8] + "…",
+                        data={
+                            CONF_ENTRY_TYPE: ENTRY_TYPE_XPUB,
+                            CONF_XPUB: wallet,
+                            CONF_LABEL: label or wallet[:8] + "…",
+                            CONF_CURRENCY: currency,
+                        },
+                    )
+            elif BTC_ADDRESS_RE.match(wallet):
+                await self.async_set_unique_id(wallet)
+                self._abort_if_unique_id_configured()
+                return self.async_create_entry(
+                    title=label or wallet[:8] + "…",
+                    data={
+                        CONF_ENTRY_TYPE: ENTRY_TYPE_ADDRESS,
+                        CONF_ADDRESS: wallet,
+                        CONF_LABEL: label or wallet[:8] + "…",
+                        CONF_CURRENCY: currency,
+                    },
+                )
+            else:
+                errors[_CONF_WALLET] = "invalid_wallet"
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_ENTRY_TYPE, default=ENTRY_TYPE_ADDRESS): vol.In(
-                        [ENTRY_TYPE_ADDRESS, ENTRY_TYPE_XPUB]
-                    )
-                }
-            ),
-        )
-
-    async def async_step_address(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            address = user_input[CONF_ADDRESS].strip()
-            if not BTC_ADDRESS_RE.match(address):
-                errors[CONF_ADDRESS] = "invalid_address"
-            else:
-                await self.async_set_unique_id(address)
-                self._abort_if_unique_id_configured()
-                label = user_input.get(CONF_LABEL, "").strip() or address[:8] + "…"
-                return self.async_create_entry(
-                    title=label,
-                    data={
-                        CONF_ENTRY_TYPE: ENTRY_TYPE_ADDRESS,
-                        CONF_ADDRESS: address,
-                        CONF_LABEL: label,
-                        CONF_CURRENCY: user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY),
-                    },
-                )
-
-        return self.async_show_form(
-            step_id="address",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_ADDRESS, default=""): str,
-                    vol.Optional(CONF_LABEL, default=""): str,
-                    vol.Optional(CONF_CURRENCY, default=DEFAULT_CURRENCY): vol.In(
-                        SUPPORTED_CURRENCIES
-                    ),
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_xpub(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        errors: dict[str, str] = {}
-
-        if user_input is not None:
-            xpub = user_input[CONF_XPUB].strip()
-            if not _validate_xpub(xpub):
-                errors[CONF_XPUB] = "invalid_xpub"
-            else:
-                try:
-                    await self.hass.async_add_executor_job(_test_derive, xpub)
-                except Exception as exc:
-                    _LOGGER.exception("xpub derivation failed: %s", exc)
-                    errors[CONF_XPUB] = "invalid_xpub"
-
-            if not errors:
-                await self.async_set_unique_id(f"xpub_{xpub}")
-                self._abort_if_unique_id_configured()
-                label = user_input.get(CONF_LABEL, "").strip() or xpub[:8] + "…"
-                return self.async_create_entry(
-                    title=label,
-                    data={
-                        CONF_ENTRY_TYPE: ENTRY_TYPE_XPUB,
-                        CONF_XPUB: xpub,
-                        CONF_LABEL: label,
-                        CONF_CURRENCY: user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY),
-                    },
-                )
-
-        return self.async_show_form(
-            step_id="xpub",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_XPUB, default=""): str,
+                    vol.Required(_CONF_WALLET, default=""): str,
                     vol.Optional(CONF_LABEL, default=""): str,
                     vol.Optional(CONF_CURRENCY, default=DEFAULT_CURRENCY): vol.In(
                         SUPPORTED_CURRENCIES

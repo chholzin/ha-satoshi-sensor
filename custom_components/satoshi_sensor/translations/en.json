@@ -2,37 +2,19 @@
   "config": {
     "step": {
       "user": {
-        "title": "Choose wallet type",
+        "title": "Add Bitcoin Wallet",
+        "description": "Enter a single Bitcoin address (1…, 3…, bc1…) **or** an Extended Public Key (xpub / ypub / zpub). The integration detects the type automatically.",
         "data": {
-          "entry_type": "Type"
-        },
-        "data_description": {
-          "entry_type": "\"address\" for a single address, \"xpub\" for a hardware wallet (HD wallet)"
-        }
-      },
-      "address": {
-        "title": "Add Bitcoin Address",
-        "description": "Enter a Bitcoin wallet address (Legacy, SegWit or Native SegWit).",
-        "data": {
-          "address": "Bitcoin Address",
-          "label": "Name / Label (optional)",
-          "currency": "Fiat Currency"
-        }
-      },
-      "xpub": {
-        "title": "Add HD Wallet (xpub)",
-        "description": "Enter the Extended Public Key (xpub/ypub/zpub) of your hardware wallet. All addresses will be derived automatically (gap limit: 20).",
-        "data": {
-          "xpub": "Extended Public Key (xpub / ypub / zpub)",
+          "wallet": "Bitcoin address or xpub / ypub / zpub",
           "label": "Name / Label (optional)",
           "currency": "Fiat Currency"
         }
       }
     },
     "error": {
-      "invalid_address": "Invalid Bitcoin address. Must start with 1, 3 or bc1.",
-      "invalid_xpub": "Invalid Extended Public Key. Must start with xpub, ypub or zpub.",
-      "already_configured": "This address is already configured."
+      "invalid_wallet": "Invalid input. Please enter a Bitcoin address (1…, 3…, bc1…) or an Extended Public Key (xpub / ypub / zpub).",
+      "invalid_xpub": "The Extended Public Key could not be processed. Check that you exported the correct key (zpub for Native SegWit, ypub for SegWit, xpub for Legacy).",
+      "already_configured": "This wallet is already configured."
     },
     "abort": {
       "already_configured": "This wallet is already set up."
