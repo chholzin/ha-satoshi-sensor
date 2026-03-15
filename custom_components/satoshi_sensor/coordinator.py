@@ -22,6 +22,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+_TYPE_TO_PREFIX = {"legacy": "xpub", "segwit": "ypub", "native_segwit": "zpub"}
+
 
 async def _fetch_price(session: aiohttp.ClientSession, currency: str) -> tuple[float, float]:
     url = COINGECKO_API_URL.format(currency=currency)
@@ -101,7 +103,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
 
 
 class XpubCoordinator(DataUpdateCoordinator):
-    """Scan all addresses derived from an xpub/ypub/zpub."""
+    """Scan addresses for all 3 standard types derived from an xpub/ypub/zpub."""
 
     def __init__(
         self,
@@ -120,45 +122,71 @@ class XpubCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self) -> dict:
+        from .xpub import convert_xpub
+
+        typed_xpubs = {
+            type_key: convert_xpub(self.xpub, prefix)
+            for type_key, prefix in _TYPE_TO_PREFIX.items()
+        }
+
         try:
             async with aiohttp.ClientSession() as session:
-                addresses_data = await self._scan_addresses(session)
-                price, price_change_24h = await _fetch_price(session, self.currency)
+                semaphore = asyncio.Semaphore(5)
+
+                legacy_res, segwit_res, native_res, price_res = await asyncio.gather(
+                    self._scan_addresses(session, typed_xpubs["legacy"],        semaphore),
+                    self._scan_addresses(session, typed_xpubs["segwit"],        semaphore),
+                    self._scan_addresses(session, typed_xpubs["native_segwit"], semaphore),
+                    _fetch_price(session, self.currency),
+                )
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error: {err}") from err
 
-        total_satoshi = sum(d["balance"] for d in addresses_data.values())
-        total_unconfirmed = sum(d["unconfirmed"] for d in addresses_data.values())
-        balance_btc = total_satoshi / SATOSHIS_PER_BTC
-        active_count = sum(1 for d in addresses_data.values() if d["tx_count"] > 0)
+        price, price_change_24h = price_res
+
+        def _aggregate(addresses_data: dict) -> dict:
+            total_satoshi = sum(d["balance"] for d in addresses_data.values())
+            total_unconfirmed = sum(d["unconfirmed"] for d in addresses_data.values())
+            balance_btc = total_satoshi / SATOSHIS_PER_BTC
+            return {
+                "satoshi": total_satoshi,
+                "btc": balance_btc,
+                "fiat": round(balance_btc * price, 2),
+                "unconfirmed_satoshi": total_unconfirmed,
+                "address_count": sum(1 for d in addresses_data.values() if d["tx_count"] > 0),
+                "addresses": {
+                    addr: d["balance"]
+                    for addr, d in addresses_data.items()
+                    if d["tx_count"] > 0
+                },
+            }
 
         return {
-            "satoshi": total_satoshi,
-            "btc": balance_btc,
-            "fiat": round(balance_btc * price, 2),
-            "currency": self.currency.upper(),
             "price": price,
             "price_change_24h": price_change_24h,
-            "unconfirmed_satoshi": total_unconfirmed,
-            "address_count": active_count,
-            "addresses": {
-                addr: d["balance"]
-                for addr, d in addresses_data.items()
-                if d["tx_count"] > 0
+            "currency": self.currency.upper(),
+            "types": {
+                "legacy":        _aggregate(legacy_res),
+                "segwit":        _aggregate(segwit_res),
+                "native_segwit": _aggregate(native_res),
             },
         }
 
-    async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
+    async def _scan_addresses(
+        self,
+        session: aiohttp.ClientSession,
+        xpub_for_type: str,
+        semaphore: asyncio.Semaphore,
+    ) -> dict:
         from .xpub import derive_addresses
 
-        semaphore = asyncio.Semaphore(5)
         results: dict[str, dict] = {}
         gap = 0
         index = 0
 
         while gap < GAP_LIMIT:
             batch = await self.hass.async_add_executor_job(
-                derive_addresses, self.xpub, index, XPUB_BATCH_SIZE
+                derive_addresses, xpub_for_type, index, XPUB_BATCH_SIZE
             )
             tasks = [_fetch_address_data(session, addr, semaphore) for addr in batch]
             batch_results = await asyncio.gather(*tasks)
