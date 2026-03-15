@@ -5,6 +5,15 @@ DOMAIN = "satoshi_sensor"
 CONF_ADDRESS = "address"
 CONF_LABEL = "label"
 CONF_CURRENCY = "currency"
+CONF_XPUB = "xpub"
+CONF_ENTRY_TYPE = "entry_type"
+
+ENTRY_TYPE_ADDRESS = "address"
+ENTRY_TYPE_XPUB = "xpub"
+
+GAP_LIMIT = 20
+XPUB_BATCH_SIZE = 20
+XPUB_PREFIXES = ("xpub", "ypub", "zpub")
 
 DEFAULT_CURRENCY = "eur"
 CONF_SCAN_INTERVAL = "scan_interval"
