@@ -39,7 +39,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict:
         try:
             async with aiohttp.ClientSession() as session:
-                balance_satoshi = await self._fetch_balance(session)
+                balance_satoshi, unconfirmed_satoshi = await self._fetch_balance(session)
                 price, price_change_24h = await self._fetch_price(session)
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error: {err}") from err
@@ -54,6 +54,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             "currency": self.currency.upper(),
             "price": price,
             "price_change_24h": price_change_24h,
+            "unconfirmed_satoshi": unconfirmed_satoshi,
         }
 
     async def _fetch_balance(self, session: aiohttp.ClientSession) -> int:
@@ -65,7 +66,9 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
 
         funded = data["chain_stats"]["funded_txo_sum"]
         spent = data["chain_stats"]["spent_txo_sum"]
-        return funded - spent
+        unconfirmed_funded = data["mempool_stats"]["funded_txo_sum"]
+        unconfirmed_spent = data["mempool_stats"]["spent_txo_sum"]
+        return funded - spent, unconfirmed_funded - unconfirmed_spent
 
     async def _fetch_price(self, session: aiohttp.ClientSession) -> tuple[float, float]:
         url = COINGECKO_API_URL.format(currency=self.currency)
