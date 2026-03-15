@@ -183,3 +183,12 @@ class TestFetchAddressData:
         async with aiohttp.ClientSession() as session:
             data = await _fetch_address_data(session, ADDR, sem, custom_url)
         assert data["balance"] == 100_000
+
+    @pytest.mark.asyncio
+    async def test_custom_url_500_shows_indexing_hint(self, mock_aiohttp):
+        custom_url = "http://umbrel.local:3006/api"
+        mock_aiohttp.get(f"{custom_url}/address/{ADDR}", status=500)
+        sem = asyncio.Semaphore(1)
+        async with aiohttp.ClientSession() as session:
+            with pytest.raises(_UpdateFailed, match="indexing"):
+                await _fetch_address_data(session, ADDR, sem, custom_url)

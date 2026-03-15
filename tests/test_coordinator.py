@@ -166,6 +166,15 @@ class TestClassifyHttpError:
         msg = _classify_http_error(403, "CoinGecko")
         assert "HTTP 403" in msg
 
+    def test_custom_url_500_shows_indexing_hint(self):
+        msg = _classify_http_error(500, "http://umbrel:4080/api", is_custom_url=True)
+        assert "indexing" in msg.lower()
+        assert "Electrs/Fulcrum" in msg
+
+    def test_public_url_500_no_indexing_hint(self):
+        msg = _classify_http_error(500, "mempool.space")
+        assert "indexing" not in msg.lower()
+
 
 class TestBackoffLogic:
     def test_multiplier_capped(self):

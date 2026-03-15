@@ -28,10 +28,16 @@ _STORAGE_VERSION = 1
 _LOGGER = logging.getLogger(__name__)
 
 
-def _classify_http_error(status: int, source: str) -> str:
+def _classify_http_error(status: int, source: str, *, is_custom_url: bool = False) -> str:
     if status == 429:
         return f"{source} rate limit exceeded (HTTP 429) — consider increasing the update interval"
     if 500 <= status < 600:
+        if is_custom_url:
+            return (
+                f"{source} server error (HTTP {status}) — your Mempool instance "
+                "may still be indexing addresses. Check that the Electrum backend "
+                "(Electrs/Fulcrum) is fully synced and the address index is enabled."
+            )
         return f"{source} server error (HTTP {status}) — the API may be temporarily unavailable"
     return f"{source} returned HTTP {status}"
 
@@ -64,9 +70,13 @@ async def _fetch_address_data(
 ) -> dict:
     async with semaphore:
         url = f"{mempool_base_url.rstrip('/')}/address/{address}"
+        is_custom = mempool_base_url != DEFAULT_MEMPOOL_URL
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
-                raise UpdateFailed(_classify_http_error(resp.status, f"mempool.space ({address[:8]}…)"))
+                label = mempool_base_url if is_custom else "mempool.space"
+                raise UpdateFailed(
+                    _classify_http_error(resp.status, f"{label} ({address[:8]}…)", is_custom_url=is_custom)
+                )
             try:
                 data = await resp.json()
             except (ValueError, aiohttp.ContentTypeError) as err:
