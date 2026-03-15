@@ -86,6 +86,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
     ) -> None:
         self.address = address
         self.currency = currency.lower()
+        self._session: aiohttp.ClientSession | None = None
         super().__init__(
             hass,
             _LOGGER,
@@ -94,11 +95,12 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self) -> dict:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
         try:
-            async with aiohttp.ClientSession() as session:
-                semaphore = asyncio.Semaphore(1)
-                addr_data = await _fetch_address_data(session, self.address, semaphore)
-                price, price_change_24h = await _fetch_price(session, self.currency)
+            semaphore = asyncio.Semaphore(1)
+            addr_data = await _fetch_address_data(self._session, self.address, semaphore)
+            price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error: {err}") from err
 
@@ -114,6 +116,12 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             "unconfirmed_satoshi": addr_data["unconfirmed"],
         }
 
+    async def async_shutdown(self) -> None:
+        """Close the shared HTTP session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+        await super().async_shutdown()
+
 
 class XpubCoordinator(DataUpdateCoordinator):
     """Scan all addresses derived from an xpub/ypub/zpub."""
@@ -127,6 +135,7 @@ class XpubCoordinator(DataUpdateCoordinator):
     ) -> None:
         self.xpub = xpub
         self.currency = currency.lower()
+        self._session: aiohttp.ClientSession | None = None
         super().__init__(
             hass,
             _LOGGER,
@@ -135,10 +144,11 @@ class XpubCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_update_data(self) -> dict:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
         try:
-            async with aiohttp.ClientSession() as session:
-                addresses_data = await self._scan_addresses(session)
-                price, price_change_24h = await _fetch_price(session, self.currency)
+            addresses_data = await self._scan_addresses(self._session)
+            price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error: {err}") from err
 
@@ -162,6 +172,12 @@ class XpubCoordinator(DataUpdateCoordinator):
                 if d["tx_count"] > 0
             },
         }
+
+    async def async_shutdown(self) -> None:
+        """Close the shared HTTP session."""
+        if self._session and not self._session.closed:
+            await self._session.close()
+        await super().async_shutdown()
 
     async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
         from .xpub import derive_addresses
