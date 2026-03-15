@@ -147,7 +147,12 @@ class XpubCoordinator(DataUpdateCoordinator):
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
         try:
-            addresses_data = await self._scan_addresses(self._session)
+            try:
+                addresses_data = await asyncio.wait_for(
+                    self._scan_addresses(self._session), timeout=180
+                )
+            except asyncio.TimeoutError as err:
+                raise UpdateFailed("xpub address scan timed out after 180 s") from err
             price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
             raise UpdateFailed(f"Network error: {err}") from err
