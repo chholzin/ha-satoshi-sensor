@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements_test.txt
+
+      - name: Run tests
+        run: pytest tests/ -v --tb=short
+
+      - name: Extract version from manifest
+        id: version
+        run: |
+          VERSION=$(python -c "import json; print(json.load(open('custom_components/satoshi_sensor/manifest.json'))['version'])")
+          TAG=${GITHUB_REF#refs/tags/v}
+          echo "manifest_version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_version=$TAG" >> $GITHUB_OUTPUT
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "::error::Tag version ($TAG) does not match manifest.json version ($VERSION)"
+            exit 1
+          fi
+
+      - name: Create zip
+        run: |
+          cd custom_components
+          zip -r ../satoshi_sensor.zip satoshi_sensor/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ steps.version.outputs.manifest_version }}"
+          generate_release_notes: true
+          files: satoshi_sensor.zip
