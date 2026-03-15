@@ -23,6 +23,20 @@ _XPUB_TYPE_LABEL = {
     "zpub": "Native SegWit",
 }
 
+_ADDRESS_TYPE_LABEL = {
+    "1": "Legacy",
+    "3": "SegWit",
+    "bc1q": "Native SegWit",
+    "bc1p": "Taproot",
+}
+
+
+def _address_type_label(address: str) -> str:
+    for prefix, label in _ADDRESS_TYPE_LABEL.items():
+        if address.startswith(prefix):
+            return label
+    return "Wallet"
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -55,8 +69,9 @@ def _device_info(entry: ConfigEntry, identifier: str, label: str) -> DeviceInfo:
         name = f"BTC Wallet {label} · {type_label}"
         model = f"HD Wallet ({type_label})"
     else:
-        name = f"BTC Wallet {label}"
-        model = "Wallet"
+        type_label = _address_type_label(identifier)
+        name = f"BTC Wallet {label} · {type_label}"
+        model = f"Wallet ({type_label})"
     return DeviceInfo(
         identifiers={(DOMAIN, identifier)},
         name=name,
