@@ -72,7 +72,7 @@ def _b58decode(s: str) -> bytes:
     while n:
         n, r = divmod(n, 256)
         result.append(r)
-    leading = sum(1 for c in s if c == "1")
+    leading = len(s) - len(s.lstrip("1"))
     return bytes(leading) + bytes(reversed(result))
 
 
