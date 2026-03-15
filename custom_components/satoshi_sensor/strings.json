@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bitcoin-Wallet hinzufügen",
+        "description": "Gib eine Bitcoin-Wallet-Adresse ein (Legacy, SegWit oder Native SegWit).",
+        "data": {
+          "address": "Bitcoin-Adresse",
+          "label": "Name / Label (optional)",
+          "currency": "Fiat-Währung"
+        }
+      }
+    },
+    "error": {
+      "invalid_address": "Ungültige Bitcoin-Adresse. Muss mit 1, 3 oder bc1 beginnen.",
+      "already_configured": "Diese Adresse ist bereits konfiguriert."
+    },
+    "abort": {
+      "already_configured": "Diese Wallet-Adresse ist bereits eingerichtet."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Einstellungen",
+        "data": {
+          "currency": "Fiat-Währung"
+        }
+      }
+    }
+  }
+}
