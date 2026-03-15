@@ -14,6 +14,9 @@
     "error": {
       "invalid_wallet": "Invalid input. Please enter a Bitcoin address (1…, 3…, bc1…) or an Extended Public Key (xpub / ypub / zpub).",
       "invalid_xpub": "The Extended Public Key could not be processed. Check that you exported the correct key (zpub for Native SegWit, ypub for SegWit, xpub for Legacy).",
+      "xpub_bad_checksum": "Invalid checksum — the key may have been copied incompletely.",
+      "xpub_bad_length": "Invalid length — please enter the full Extended Public Key.",
+      "xpub_derivation_failed": "Address derivation failed — check that this is a valid xpub/ypub/zpub.",
       "already_configured": "This wallet is already configured."
     },
     "abort": {

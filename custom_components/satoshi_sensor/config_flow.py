@@ -42,9 +42,21 @@ def _validate_xpub(xpub: str) -> bool:
     return xpub[:4].lower() in XPUB_PREFIXES and len(xpub) >= 100
 
 
-def _test_derive(xpub: str) -> None:
+def _test_derive(xpub: str) -> str:
+    """Try to derive one address; return a specific error key on failure."""
     from .xpub import derive_addresses
-    derive_addresses(xpub, 0, 1)
+    try:
+        derive_addresses(xpub, 0, 1)
+    except ValueError as exc:
+        msg = str(exc).lower()
+        if "checksum" in msg:
+            return "xpub_bad_checksum"
+        if "78 bytes" in msg or "length" in msg:
+            return "xpub_bad_length"
+        return "xpub_derivation_failed"
+    except Exception:
+        return "xpub_derivation_failed"
+    return ""
 
 
 class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -61,11 +73,10 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
             currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
 
             if _validate_xpub(wallet):
-                try:
-                    await self.hass.async_add_executor_job(_test_derive, wallet)
-                except Exception as exc:
-                    _LOGGER.exception("xpub derivation failed: %s", exc)
-                    errors[_CONF_WALLET] = "invalid_xpub"
+                error_key = await self.hass.async_add_executor_job(_test_derive, wallet)
+                if error_key:
+                    _LOGGER.warning("xpub validation failed (%s): %s", error_key, wallet[:12])
+                    errors[_CONF_WALLET] = error_key
 
                 if not errors:
                     await self.async_set_unique_id(f"xpub_{wallet}")
