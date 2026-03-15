@@ -12,10 +12,16 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, DOMAIN, ENTRY_TYPE_XPUB
+from .const import CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB, DOMAIN, ENTRY_TYPE_XPUB
 from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
 
 _AnyCoordinator = SatoshiSensorCoordinator | XpubCoordinator
+
+_XPUB_TYPE_LABEL = {
+    "xpub": "Legacy",
+    "ypub": "SegWit",
+    "zpub": "Native SegWit",
+}
 
 
 async def async_setup_entry(
@@ -26,7 +32,7 @@ async def async_setup_entry(
     coordinator: _AnyCoordinator = hass.data[DOMAIN][entry.entry_id]
     label = entry.data[CONF_LABEL]
     is_xpub = entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB
-    identifier = entry.data.get("xpub", entry.data.get(CONF_ADDRESS, ""))
+    identifier = entry.data.get(CONF_XPUB, entry.data.get(CONF_ADDRESS, ""))
 
     entities = [
         SatoshiBalanceSensor(coordinator, entry, identifier, label, is_xpub),
@@ -42,11 +48,20 @@ async def async_setup_entry(
 
 
 def _device_info(entry: ConfigEntry, identifier: str, label: str) -> DeviceInfo:
+    is_xpub = entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB
+    if is_xpub:
+        prefix = entry.data.get(CONF_XPUB, "")[:4].lower()
+        type_label = _XPUB_TYPE_LABEL.get(prefix, "HD Wallet")
+        name = f"BTC Wallet {label} · {type_label}"
+        model = f"HD Wallet ({type_label})"
+    else:
+        name = f"BTC Wallet {label}"
+        model = "Wallet"
     return DeviceInfo(
         identifiers={(DOMAIN, identifier)},
-        name=f"BTC Wallet {label}",
+        name=name,
         manufacturer="Bitcoin",
-        model="HD Wallet" if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB else "Wallet",
+        model=model,
         entry_type=DeviceEntryType.SERVICE,
     )
 
