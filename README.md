@@ -12,14 +12,19 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
 
 - **Einzelne Adressen** oder ganze **HD Wallets via xpub/ypub/zpub** hinzufügen
 - Ein Config Entry pro Wallet (einzeln hinzufügen/entfernen)
-- **6 Sensoren pro Einzeladresse**, **7 Sensoren pro HD Wallet**:
+- **Portfolio Total** — wird automatisch als eigener Eintrag angelegt und zeigt die **Gesamtsumme aller Wallets**:
+  - **Total Balance (Satoshi)** — Summe aller Satoshi-Guthaben
+  - **Total Balance (BTC)** — Summe aller BTC-Guthaben
+  - **Total Value** — Gesamtwert in Fiat (nur wenn alle Wallets dieselbe Währung nutzen)
+- **7 Sensoren pro Eintrag** (Einzeladresse und HD Wallet):
   - **Balance (Satoshi)** — bestätigtes Guthaben in Satoshi
   - **Balance (BTC)** — bestätigtes Guthaben in BTC
   - **Value** — Fiat-Wert in der konfigurierten Währung (EUR, USD, CHF, GBP)
   - **BTC Price Change 24h** — Preisänderung in % über 24 Stunden
   - **Unconfirmed Balance** — ausstehende unbestätigte Transaktionen in Satoshi
   - **Transactions** — Gesamtzahl der Transaktionen
-  - **Active Addresses** *(nur HD Wallet)* — Anzahl Adressen mit Transaktionshistorie
+  - **Address** *(Einzeladresse)* — die Bitcoin-Adresse als Sensorwert
+  - **Active Addresses** *(HD Wallet)* — Anzahl Adressen mit Transaktionshistorie
 - Gerätename enthält automatisch den Adresstyp (Legacy / SegWit / Native SegWit / Taproot)
 - HD-Wallet: alle verwendeten Adressen mit Guthaben als Sensor-Attribute abrufbar
 - HD-Wallet: scannt **externe und Change-Chain** (m/.../0 und m/.../1) für vollständige Salden
@@ -139,6 +144,20 @@ Einzelnes Guthaben einer bestimmten Adresse abfragen:
 
 Änderungen werden sofort übernommen (die Integration lädt automatisch neu).
 
+### Portfolio Total
+
+Sobald mindestens eine Wallet hinzugefügt wird, erscheint automatisch der Eintrag **„Portfolio Total"** unter Geräte & Dienste. Dieser Eintrag enthält drei Aggregations-Sensoren:
+
+| Sensor | Beschreibung |
+|--------|-------------|
+| **Total Balance (Satoshi)** | Summe aller Satoshi-Guthaben über alle Wallets |
+| **Total Balance (BTC)** | Summe aller BTC-Guthaben über alle Wallets |
+| **Total Value** | Gesamtwert in Fiat — nur wenn alle Wallets dieselbe Währung nutzen |
+
+> Wenn verschiedene Währungen konfiguriert sind, zeigt **Total Value** `Unavailable` und ein `warning`-Attribut listet die gemischten Währungen auf.
+
+Die Sensoren aktualisieren sich automatisch bei jeder Wallet-Aktualisierung. Der Eintrag muss nicht manuell angelegt werden und kann nicht manuell gelöscht werden (er wird bei der nächsten Wallet-Aktivität neu erstellt).
+
 ### Diagnostik
 
 Unter **Einstellungen → Geräte & Dienste → Satoshi Sensor → Diagnostik herunterladen** können Diagnosedaten exportiert werden. Enthalten sind:
@@ -159,14 +178,19 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
 
 - Add **single addresses** or entire **HD wallets via xpub/ypub/zpub**
 - One config entry per wallet (easy to add/remove individually)
-- **6 sensors per single address**, **7 sensors per HD wallet**:
+- **Portfolio Total** — automatically created as its own entry, showing the **aggregate across all wallets**:
+  - **Total Balance (Satoshi)** — sum of all satoshi balances
+  - **Total Balance (BTC)** — sum of all BTC balances
+  - **Total Value** — total fiat value (only when all wallets use the same currency)
+- **7 sensors per entry** (single address and HD wallet):
   - **Balance (Satoshi)** — confirmed balance in satoshis
   - **Balance (BTC)** — confirmed balance in BTC
   - **Value** — fiat value in your configured currency (EUR, USD, CHF, GBP)
   - **BTC Price Change 24h** — 24-hour BTC price change in %
   - **Unconfirmed Balance** — pending unconfirmed balance in satoshis
   - **Transactions** — total number of transactions
-  - **Active Addresses** *(HD wallet only)* — number of addresses with transaction history
+  - **Address** *(single address)* — the Bitcoin address as a sensor value
+  - **Active Addresses** *(HD wallet)* — number of addresses with transaction history
 - Device name automatically includes the address type (Legacy / SegWit / Native SegWit / Taproot)
 - HD wallet: all used addresses with balances accessible as sensor attributes
 - HD wallet: scans **external and change chain** (m/.../0 and m/.../1) for complete balances
@@ -285,6 +309,20 @@ Go to the integration's **Configure** button to change:
 - **Mempool API URL** — use your own Mempool instance (default: `https://mempool.space/api`)
 
 Changes take effect immediately after saving (the integration reloads automatically).
+
+### Portfolio Total
+
+As soon as the first wallet is added, a **"Portfolio Total"** entry appears automatically under Devices & Services. It contains three aggregate sensors:
+
+| Sensor | Description |
+|--------|-------------|
+| **Total Balance (Satoshi)** | Sum of all satoshi balances across all wallets |
+| **Total Balance (BTC)** | Sum of all BTC balances across all wallets |
+| **Total Value** | Total fiat value — only when all wallets use the same currency |
+
+> If different currencies are configured, **Total Value** shows `Unavailable` and a `warning` attribute lists the mixed currencies.
+
+The sensors update automatically whenever any wallet refreshes. The entry is created automatically and does not need to be added manually — if deleted, it will be re-created the next time a wallet entry is activated.
 
 ### Diagnostics
 

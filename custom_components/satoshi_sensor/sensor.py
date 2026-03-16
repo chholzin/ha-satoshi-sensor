@@ -71,6 +71,8 @@ async def async_setup_entry(
     ]
     if is_xpub:
         entities.append(AddressCountSensor(coordinator, entry, identifier, label))
+    else:
+        entities.append(WalletAddressSensor(coordinator, entry, identifier, label))
 
     async_add_entities(entities)
 
@@ -270,6 +272,20 @@ class AddressCountSensor(_BaseSensor):
         if self.coordinator.data:
             return self.coordinator.data.get("address_count")
         return None
+
+
+class WalletAddressSensor(_BaseSensor):
+    _attr_name = "Address"
+    _attr_icon = "mdi:identifier"
+    _attr_state_class = None
+
+    def __init__(self, coordinator, entry, identifier, label):
+        super().__init__(coordinator, entry, identifier, label)
+        self._attr_unique_id = f"{DOMAIN}_{identifier}_address"
+
+    @property
+    def native_value(self) -> str:
+        return self._identifier
 
 
 # ── Total sensors (aggregate across all config entries) ──────────────────────
