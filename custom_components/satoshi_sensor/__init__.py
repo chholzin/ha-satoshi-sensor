@@ -6,6 +6,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.dispatcher import async_dispatcher_send
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,6 +23,8 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     ENTRY_TYPE_XPUB,
+    SIGNAL_TOTALS_UPDATE,
+    _TOTALS_ADDED_KEY,
 )
 from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
 
@@ -53,13 +56,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Set up entry %s (%s)", entry.title, entry.data.get(CONF_ENTRY_TYPE, "address"))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+    async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
+        domain_data = hass.data.get(DOMAIN, {})
+        domain_data.pop(entry.entry_id, None)
+        # If this was the entry that owned the total sensors, reset the flag
+        # so they're re-created on the next entry's platform setup
+        if not any(k for k in domain_data if not k.startswith("_")):
+            domain_data.pop(_TOTALS_ADDED_KEY, None)
+        async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
     return unloaded
 
 

@@ -7,12 +7,16 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB, DOMAIN, ENTRY_TYPE_XPUB
+from .const import (
+    CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB,
+    DOMAIN, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE, _TOTALS_ADDED_KEY,
+)
 from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
 
 _AnyCoordinator = SatoshiSensorCoordinator | XpubCoordinator
@@ -60,6 +64,15 @@ async def async_setup_entry(
         entities.append(AddressCountSensor(coordinator, entry, identifier, label))
 
     async_add_entities(entities)
+
+    # Register total sensors once — on the first entry that is set up
+    if not hass.data[DOMAIN].get(_TOTALS_ADDED_KEY):
+        hass.data[DOMAIN][_TOTALS_ADDED_KEY] = True
+        async_add_entities([
+            TotalSatoshiSensor(hass),
+            TotalBtcSensor(hass),
+            TotalValueSensor(hass),
+        ])
 
 
 def _device_info(entry: ConfigEntry, identifier: str, label: str) -> DeviceInfo:
@@ -257,3 +270,99 @@ class AddressCountSensor(_BaseSensor):
         if self.coordinator.data:
             return self.coordinator.data.get("address_count")
         return None
+
+
+# ── Total sensors (aggregate across all config entries) ──────────────────────
+
+_TOTALS_DEVICE = DeviceInfo(
+    identifiers={(DOMAIN, "_totals")},
+    name="Satoshi Sensor · Total",
+    manufacturer="Bitcoin",
+    model="Aggregated Wallets",
+    entry_type=DeviceEntryType.SERVICE,
+)
+
+
+class _TotalSensor(SensorEntity):
+    """Base class for aggregate sensors that sum all wallet coordinators."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_device_info = _TOTALS_DEVICE
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self._hass = hass
+
+    async def async_added_to_hass(self) -> None:
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass, SIGNAL_TOTALS_UPDATE, self._handle_update
+            )
+        )
+
+    @callback
+    def _handle_update(self) -> None:
+        self.async_write_ha_state()
+
+    def _coordinators(self):
+        return [
+            c for k, c in self._hass.data.get(DOMAIN, {}).items()
+            if not k.startswith("_") and hasattr(c, "data") and c.data
+        ]
+
+
+class TotalSatoshiSensor(_TotalSensor):
+    _attr_unique_id = f"{DOMAIN}_total_satoshi"
+    _attr_name = "Total Balance (Satoshi)"
+    _attr_native_unit_of_measurement = "sat"
+    _attr_icon = "mdi:bitcoin"
+
+    @property
+    def native_value(self) -> int:
+        return sum(c.data.get("satoshi", 0) for c in self._coordinators())
+
+
+class TotalBtcSensor(_TotalSensor):
+    _attr_unique_id = f"{DOMAIN}_total_btc"
+    _attr_name = "Total Balance (BTC)"
+    _attr_native_unit_of_measurement = "BTC"
+    _attr_suggested_display_precision = 8
+    _attr_icon = "mdi:bitcoin"
+
+    @property
+    def native_value(self) -> float:
+        return sum(c.data.get("btc", 0.0) for c in self._coordinators())
+
+
+class TotalValueSensor(_TotalSensor):
+    _attr_unique_id = f"{DOMAIN}_total_value"
+    _attr_name = "Total Value"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:cash-multiple"
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        coordinators = self._coordinators()
+        if not coordinators:
+            return None
+        currencies = {c.data["currency"] for c in coordinators if c.data}
+        return currencies.pop() if len(currencies) == 1 else None
+
+    @property
+    def native_value(self) -> float | None:
+        coordinators = self._coordinators()
+        if not coordinators:
+            return None
+        currencies = {c.data["currency"] for c in coordinators if c.data}
+        if len(currencies) != 1:
+            return None  # Mixed currencies — can't sum meaningfully
+        return round(sum(c.data.get("fiat", 0.0) for c in coordinators), 2)
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        coordinators = self._coordinators()
+        currencies = {c.data["currency"] for c in coordinators if c.data}
+        if len(currencies) > 1:
+            return {"warning": f"Mixed currencies detected: {', '.join(sorted(currencies))} — value unavailable"}
+        return {}

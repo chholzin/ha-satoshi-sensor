@@ -1,6 +1,8 @@
 """Constants for Satoshi Sensor."""
 
 DOMAIN = "satoshi_sensor"
+SIGNAL_TOTALS_UPDATE = f"{DOMAIN}_totals_update"
+_TOTALS_ADDED_KEY = "_totals_added"
 
 CONF_ADDRESS = "address"
 CONF_LABEL = "label"
