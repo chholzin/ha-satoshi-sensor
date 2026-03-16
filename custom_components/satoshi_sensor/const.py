@@ -2,7 +2,7 @@
 
 DOMAIN = "satoshi_sensor"
 SIGNAL_TOTALS_UPDATE = f"{DOMAIN}_totals_update"
-_TOTALS_ADDED_KEY = "_totals_added"
+TOTALS_UNIQUE_ID = f"{DOMAIN}_totals"
 
 CONF_ADDRESS = "address"
 CONF_LABEL = "label"
@@ -12,6 +12,7 @@ CONF_ENTRY_TYPE = "entry_type"
 
 ENTRY_TYPE_ADDRESS = "address"
 ENTRY_TYPE_XPUB = "xpub"
+ENTRY_TYPE_TOTALS = "totals"
 
 GAP_LIMIT = 20
 XPUB_BATCH_SIZE = 20

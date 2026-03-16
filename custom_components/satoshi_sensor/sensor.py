@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB,
-    DOMAIN, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE, _TOTALS_ADDED_KEY,
+    DOMAIN, ENTRY_TYPE_TOTALS, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE,
 )
 from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
 
@@ -47,6 +47,15 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
+    # Portfolio Total entry — only create aggregate sensors
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS:
+        async_add_entities([
+            TotalSatoshiSensor(hass),
+            TotalBtcSensor(hass),
+            TotalValueSensor(hass),
+        ])
+        return
+
     coordinator: _AnyCoordinator = hass.data[DOMAIN][entry.entry_id]
     label = entry.data[CONF_LABEL]
     is_xpub = entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB
@@ -64,15 +73,6 @@ async def async_setup_entry(
         entities.append(AddressCountSensor(coordinator, entry, identifier, label))
 
     async_add_entities(entities)
-
-    # Register total sensors once — on the first entry that is set up
-    if not hass.data[DOMAIN].get(_TOTALS_ADDED_KEY):
-        hass.data[DOMAIN][_TOTALS_ADDED_KEY] = True
-        async_add_entities([
-            TotalSatoshiSensor(hass),
-            TotalBtcSensor(hass),
-            TotalValueSensor(hass),
-        ])
 
 
 def _device_info(entry: ConfigEntry, identifier: str, label: str) -> DeviceInfo:
@@ -292,16 +292,41 @@ class _TotalSensor(SensorEntity):
 
     def __init__(self, hass: HomeAssistant) -> None:
         self._hass = hass
+        self._subscribed_entries: set[str] = set()
 
     async def async_added_to_hass(self) -> None:
+        # Subscribe to dispatcher — fires when entries are added/removed
         self.async_on_remove(
             async_dispatcher_connect(
-                self.hass, SIGNAL_TOTALS_UPDATE, self._handle_update
+                self.hass, SIGNAL_TOTALS_UPDATE, self._on_entries_changed
             )
         )
+        # Subscribe to all coordinators already present
+        self._subscribe_new_coordinators()
 
     @callback
-    def _handle_update(self) -> None:
+    def _on_entries_changed(self) -> None:
+        """Called when a wallet entry is added or removed."""
+        self._subscribe_new_coordinators()
+        self.async_write_ha_state()
+
+    @callback
+    def _subscribe_new_coordinators(self) -> None:
+        """Subscribe to any coordinator not yet tracked."""
+        for key, coordinator in self._hass.data.get(DOMAIN, {}).items():
+            if (
+                not key.startswith("_")
+                and key not in self._subscribed_entries
+                and hasattr(coordinator, "async_add_listener")
+            ):
+                self._subscribed_entries.add(key)
+                self.async_on_remove(
+                    coordinator.async_add_listener(self._handle_coordinator_update)
+                )
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Called whenever any wallet coordinator refreshes its data."""
         self.async_write_ha_state()
 
     def _coordinators(self):

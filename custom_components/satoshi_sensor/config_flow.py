@@ -27,9 +27,11 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     ENTRY_TYPE_ADDRESS,
+    ENTRY_TYPE_TOTALS,
     ENTRY_TYPE_XPUB,
     MIN_UPDATE_INTERVAL,
     SUPPORTED_CURRENCIES,
+    TOTALS_UNIQUE_ID,
     XPUB_PREFIXES,
 )
 
@@ -138,6 +140,17 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
                 }
             ),
             errors=errors,
+        )
+
+    async def async_step_integration_discovery(
+        self, discovery_info: dict | None = None
+    ) -> ConfigFlowResult:
+        """Auto-create the Portfolio Total entry — no user interaction needed."""
+        await self.async_set_unique_id(TOTALS_UNIQUE_ID)
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title="Portfolio Total",
+            data={CONF_ENTRY_TYPE: ENTRY_TYPE_TOTALS},
         )
 
     @staticmethod

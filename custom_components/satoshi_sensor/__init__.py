@@ -22,9 +22,9 @@ from .const import (
     DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    ENTRY_TYPE_TOTALS,
     ENTRY_TYPE_XPUB,
     SIGNAL_TOTALS_UPDATE,
-    _TOTALS_ADDED_KEY,
 )
 from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
 
@@ -32,6 +32,12 @@ PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # The Portfolio Total entry has no coordinator — just forward to sensor platform
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS:
+        hass.data.setdefault(DOMAIN, {})
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        return True
+
     currency = entry.options.get(CONF_CURRENCY, entry.data.get(CONF_CURRENCY, DEFAULT_CURRENCY))
     scan_interval = entry.options.get(
         CONF_SCAN_INTERVAL, entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_UPDATE_INTERVAL)
@@ -56,19 +62,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info("Set up entry %s (%s)", entry.title, entry.data.get(CONF_ENTRY_TYPE, "address"))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
-    async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
+
+    # Auto-create the Portfolio Total entry if it doesn't exist yet
+    existing = hass.config_entries.async_entries(DOMAIN)
+    if not any(e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS for e in existing):
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "integration_discovery"},
+            )
+        )
+    else:
+        # Signal existing total sensors to re-subscribe to the new coordinator
+        async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
+
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS:
+        return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
-        domain_data = hass.data.get(DOMAIN, {})
-        domain_data.pop(entry.entry_id, None)
-        # If this was the entry that owned the total sensors, reset the flag
-        # so they're re-created on the next entry's platform setup
-        if not any(k for k in domain_data if not k.startswith("_")):
-            domain_data.pop(_TOTALS_ADDED_KEY, None)
+        hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
         async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
     return unloaded
 
