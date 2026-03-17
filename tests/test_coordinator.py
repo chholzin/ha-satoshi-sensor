@@ -22,6 +22,8 @@ for _k, _v in {
     "DEFAULT_UPDATE_INTERVAL": 300, "DOMAIN": "satoshi_sensor",
     "GAP_LIMIT": 20, "MIN_UPDATE_INTERVAL": 60,
     "SATOSHIS_PER_BTC": SATOSHIS_PER_BTC, "XPUB_BATCH_SIZE": 20,
+    "XPUB_SCAN_TIMEOUT": 600, "XPUB_SCAN_TIMEOUT_CUSTOM": 1800,
+    "XPUB_CONCURRENCY": 5, "XPUB_CONCURRENCY_CUSTOM": 2,
 }.items():
     setattr(_const, _k, _v)
 sys.modules[f"{_pkg_name}.const"] = _const

@@ -21,6 +21,10 @@ from .const import (
     MIN_UPDATE_INTERVAL,
     SATOSHIS_PER_BTC,
     XPUB_BATCH_SIZE,
+    XPUB_CONCURRENCY,
+    XPUB_CONCURRENCY_CUSTOM,
+    XPUB_SCAN_TIMEOUT,
+    XPUB_SCAN_TIMEOUT_CUSTOM,
 )
 
 _STORAGE_VERSION = 1
@@ -245,13 +249,17 @@ class XpubCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict:
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
+        is_custom = self._mempool_url != DEFAULT_MEMPOOL_URL
+        timeout = XPUB_SCAN_TIMEOUT_CUSTOM if is_custom else XPUB_SCAN_TIMEOUT
         try:
             try:
                 addresses_data = await asyncio.wait_for(
-                    self._scan_addresses(self._session), timeout=180
+                    self._scan_addresses(self._session, is_custom), timeout=timeout
                 )
             except asyncio.TimeoutError as err:
-                raise UpdateFailed("xpub address scan timed out after 180 s") from err
+                raise UpdateFailed(
+                    f"xpub address scan timed out after {timeout} s"
+                ) from err
             price, price_change_24h = await _fetch_price(self._session, self.currency)
         except aiohttp.ClientError as err:
             self._apply_backoff()
@@ -360,8 +368,9 @@ class XpubCoordinator(DataUpdateCoordinator):
 
         return results
 
-    async def _scan_addresses(self, session: aiohttp.ClientSession) -> dict:
-        semaphore = asyncio.Semaphore(5)
+    async def _scan_addresses(self, session: aiohttp.ClientSession, is_custom: bool = False) -> dict:
+        concurrency = XPUB_CONCURRENCY_CUSTOM if is_custom else XPUB_CONCURRENCY
+        semaphore = asyncio.Semaphore(concurrency)
 
         cached = await self._load_cached_addresses()
         cached_ext = cached["external"] if cached else []

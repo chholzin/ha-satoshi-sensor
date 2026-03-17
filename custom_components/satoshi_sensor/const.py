@@ -18,6 +18,11 @@ GAP_LIMIT = 20
 XPUB_BATCH_SIZE = 20
 XPUB_PREFIXES = ("xpub", "ypub", "zpub")
 
+XPUB_SCAN_TIMEOUT = 600          # seconds — default scan timeout (public mempool)
+XPUB_SCAN_TIMEOUT_CUSTOM = 1800  # seconds — extended timeout for self-hosted instances
+XPUB_CONCURRENCY = 5             # parallel requests — public mempool
+XPUB_CONCURRENCY_CUSTOM = 2      # parallel requests — self-hosted (gentler on RPi)
+
 DEFAULT_CURRENCY = "eur"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_UPDATE_INTERVAL = 300  # seconds

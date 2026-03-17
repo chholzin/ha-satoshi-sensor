@@ -26,6 +26,10 @@ for _k, _v in {
     "MIN_UPDATE_INTERVAL": 60,
     "SATOSHIS_PER_BTC": 100_000_000,
     "XPUB_BATCH_SIZE": 20,
+    "XPUB_SCAN_TIMEOUT": 600,
+    "XPUB_SCAN_TIMEOUT_CUSTOM": 1800,
+    "XPUB_CONCURRENCY": 5,
+    "XPUB_CONCURRENCY_CUSTOM": 2,
 }.items():
     setattr(_const, _k, _v)
 sys.modules[f"{_pkg_name}.const"] = _const
