@@ -159,6 +159,14 @@ Sobald mindestens eine Wallet hinzugefügt wird, erscheint automatisch der Eintr
 
 Die Sensoren aktualisieren sich automatisch bei jeder Wallet-Aktualisierung. Der Eintrag muss nicht manuell angelegt werden und kann nicht manuell gelöscht werden (er wird bei der nächsten Wallet-Aktivität neu erstellt).
 
+### Beispiel-Dashboard
+
+Im Repo liegt [`example_dashboard.yaml`](example_dashboard.yaml) — ein fertiges Lovelace-Dashboard mit Portfolio-Gesamt-Übersicht, Preis-Gauge und Wallet-Karten.
+
+Einfügen unter: **Einstellungen → Dashboards → Drei-Punkte-Menü → YAML-Roheditor**
+
+Die Entity-IDs in der Datei sind Platzhalter. Die eigenen IDs findest du unter **Entwicklerwerkzeuge → Zustände** (nach `satoshi` filtern).
+
 ### Diagnostik
 
 Unter **Einstellungen → Geräte & Dienste → Satoshi Sensor → Diagnostik herunterladen** können Diagnosedaten exportiert werden. Enthalten sind:
@@ -325,6 +333,14 @@ As soon as the first wallet is added, a **"Portfolio Total"** entry appears auto
 > If different currencies are configured, **Total Value** shows `Unavailable` and a `warning` attribute lists the mixed currencies.
 
 The sensors update automatically whenever any wallet refreshes. The entry is created automatically and does not need to be added manually — if deleted, it will be re-created the next time a wallet entry is activated.
+
+### Example Dashboard
+
+The repository includes [`example_dashboard.yaml`](example_dashboard.yaml) — a ready-to-use Lovelace dashboard with a portfolio overview, price gauge, and individual wallet cards.
+
+To use it: **Settings → Dashboards → three-dot menu → Edit in YAML**
+
+The entity IDs in the file are placeholders. Find your own IDs under **Developer Tools → States** (filter by `satoshi`).
 
 ### Diagnostics
 
