@@ -28,9 +28,10 @@ for _k, _v in {
     "XPUB_BATCH_SIZE": 20,
     "XPUB_SCAN_TIMEOUT": 600,
     "XPUB_SCAN_TIMEOUT_CUSTOM": 1800,
-    "XPUB_CONCURRENCY": 5,
+    "XPUB_CONCURRENCY": 3,
     "XPUB_CONCURRENCY_CUSTOM": 1,
     "CONF_XPUB_CONCURRENCY": "xpub_concurrency",
+    "REQUEST_DELAY_PUBLIC": 0.1,
     "REQUEST_DELAY_CUSTOM": 0.3,
 }.items():
     setattr(_const, _k, _v)

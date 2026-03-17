@@ -21,6 +21,7 @@ from .const import (
     GAP_LIMIT,
     MIN_UPDATE_INTERVAL,
     REQUEST_DELAY_CUSTOM,
+    REQUEST_DELAY_PUBLIC,
     SATOSHIS_PER_BTC,
     XPUB_BATCH_SIZE,
     XPUB_CONCURRENCY,
@@ -335,9 +336,11 @@ class XpubCoordinator(DataUpdateCoordinator):
         session: aiohttp.ClientSession,
         semaphore: asyncio.Semaphore,
         chain: int,
-        cached_addrs: list[str],
+        fetch_addrs: list[str],
+        scan_from_index: int,
         request_delay: float = 0.0,
     ) -> dict[str, dict]:
+        """Fetch fetch_addrs and scan for new addresses starting at scan_from_index."""
         from .xpub import derive_addresses
 
         results: dict[str, dict] = {}
@@ -348,15 +351,15 @@ class XpubCoordinator(DataUpdateCoordinator):
                 await asyncio.sleep(request_delay)
             return result
 
-        # Fetch cached addresses first
-        if cached_addrs:
-            batch_results = await asyncio.gather(*[fetch_one(a) for a in cached_addrs])
-            for addr, data in zip(cached_addrs, batch_results):
+        # Re-fetch the provided addresses (active ones on refresh, all on first scan)
+        if fetch_addrs:
+            batch_results = await asyncio.gather(*[fetch_one(a) for a in fetch_addrs])
+            for addr, data in zip(fetch_addrs, batch_results):
                 results[addr] = data
 
-        # Scan beyond cache for new addresses
+        # Scan beyond scan_from_index for new addresses
         gap = 0
-        index = len(cached_addrs)
+        index = scan_from_index
 
         while gap < GAP_LIMIT:
             batch = await self.hass.async_add_executor_job(
@@ -383,23 +386,44 @@ class XpubCoordinator(DataUpdateCoordinator):
         else:
             concurrency = XPUB_CONCURRENCY_CUSTOM if is_custom else XPUB_CONCURRENCY
         semaphore = asyncio.Semaphore(concurrency)
-        request_delay = REQUEST_DELAY_CUSTOM if is_custom else 0.0
+        request_delay = REQUEST_DELAY_CUSTOM if is_custom else REQUEST_DELAY_PUBLIC
 
         cached = await self._load_cached_addresses()
         cached_ext = cached["external"] if cached else []
         cached_chg = cached["change"] if cached else []
 
-        ext_results = await self._scan_chain(session, semaphore, 0, cached_ext, request_delay)
-        chg_results = await self._scan_chain(session, semaphore, 1, cached_chg, request_delay)
+        # On refresh: only re-fetch known active addresses to reduce API calls.
+        # Empty addresses cannot gain a balance — skip them.
+        # On first scan (no previous data): fetch all cached addresses.
+        if self.data:
+            active_addrs = set(self.data.get("addresses", {}).keys())
+            fetch_ext = [a for a in cached_ext if a in active_addrs]
+            fetch_chg = [a for a in cached_chg if a in active_addrs]
+            _LOGGER.debug(
+                "xpub %s refresh: %d/%d ext + %d/%d chg active addresses fetched",
+                self.xpub[:8],
+                len(fetch_ext), len(cached_ext),
+                len(fetch_chg), len(cached_chg),
+            )
+        else:
+            fetch_ext = cached_ext
+            fetch_chg = cached_chg
 
-        # Merge results
+        ext_results = await self._scan_chain(
+            session, semaphore, 0, fetch_ext, len(cached_ext), request_delay
+        )
+        chg_results = await self._scan_chain(
+            session, semaphore, 1, fetch_chg, len(cached_chg), request_delay
+        )
+
+        # Inactive (balance=0, tx_count=0) addresses contribute nothing to totals —
+        # omitting them on refresh is correct and saves API calls.
         results = {**ext_results, **chg_results}
 
-        # Update cache
-        new_cache = {
-            "external": list(ext_results.keys()),
-            "change": list(chg_results.keys()),
-        }
+        # Update cache: preserve all known addresses, append newly discovered ones
+        new_ext = list(dict.fromkeys(cached_ext + [a for a in ext_results if a not in cached_ext]))
+        new_chg = list(dict.fromkeys(cached_chg + [a for a in chg_results if a not in cached_chg]))
+        new_cache = {"external": new_ext, "change": new_chg}
         if new_cache != (cached or {}):
             await self._save_cached_addresses(new_cache)
 
