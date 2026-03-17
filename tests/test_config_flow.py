@@ -29,6 +29,8 @@ _const.TOTALS_UNIQUE_ID = "satoshi_sensor_totals"
 _const.MIN_UPDATE_INTERVAL = 60
 _const.SUPPORTED_CURRENCIES = ["eur", "usd", "chf"]
 _const.XPUB_PREFIXES = ("xpub", "ypub", "zpub")
+_const.CONF_XPUB_CONCURRENCY = "xpub_concurrency"
+_const.XPUB_CONCURRENCY = 5
 sys.modules[f"{_pkg_name}.const"] = _const
 
 # Stub xpub module (b58check_decode used by _validate_btc_address)

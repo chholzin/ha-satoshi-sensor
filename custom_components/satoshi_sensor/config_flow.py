@@ -22,6 +22,7 @@ from .const import (
     CONF_MEMPOOL_URL,
     CONF_SCAN_INTERVAL,
     CONF_XPUB,
+    CONF_XPUB_CONCURRENCY,
     DEFAULT_CURRENCY,
     DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
@@ -32,6 +33,7 @@ from .const import (
     MIN_UPDATE_INTERVAL,
     SUPPORTED_CURRENCIES,
     TOTALS_UNIQUE_ID,
+    XPUB_CONCURRENCY,
     XPUB_PREFIXES,
 )
 
@@ -174,17 +176,26 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
         current_mempool = self.config_entry.options.get(
             CONF_MEMPOOL_URL, self.config_entry.data.get(CONF_MEMPOOL_URL, DEFAULT_MEMPOOL_URL)
         )
+        is_xpub = self.config_entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB
+        current_concurrency = self.config_entry.options.get(
+            CONF_XPUB_CONCURRENCY, XPUB_CONCURRENCY
+        )
+
+        schema: dict = {
+            vol.Optional(CONF_CURRENCY, default=current_currency): vol.In(
+                SUPPORTED_CURRENCIES
+            ),
+            vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
+                int, vol.Range(min=MIN_UPDATE_INTERVAL)
+            ),
+            vol.Optional(CONF_MEMPOOL_URL, default=current_mempool): str,
+        }
+        if is_xpub:
+            schema[vol.Optional(CONF_XPUB_CONCURRENCY, default=current_concurrency)] = vol.All(
+                int, vol.Range(min=1, max=10)
+            )
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional(CONF_CURRENCY, default=current_currency): vol.In(
-                        SUPPORTED_CURRENCIES
-                    ),
-                    vol.Optional(CONF_SCAN_INTERVAL, default=current_interval): vol.All(
-                        int, vol.Range(min=MIN_UPDATE_INTERVAL)
-                    ),
-                    vol.Optional(CONF_MEMPOOL_URL, default=current_mempool): str,
-                }
-            ),
+            data_schema=vol.Schema(schema),
         )

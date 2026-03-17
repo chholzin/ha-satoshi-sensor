@@ -14,11 +14,13 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     COINGECKO_API_URL,
+    CONF_XPUB_CONCURRENCY,
     DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     GAP_LIMIT,
     MIN_UPDATE_INTERVAL,
+    REQUEST_DELAY_CUSTOM,
     SATOSHIS_PER_BTC,
     XPUB_BATCH_SIZE,
     XPUB_CONCURRENCY,
@@ -205,10 +207,12 @@ class XpubCoordinator(DataUpdateCoordinator):
         currency: str,
         update_interval: int = DEFAULT_UPDATE_INTERVAL,
         mempool_url: str = DEFAULT_MEMPOOL_URL,
+        concurrency: int | None = None,
     ) -> None:
         self.xpub = xpub
         self.currency = currency.lower()
         self._mempool_url = mempool_url
+        self._concurrency = concurrency
         self._session: aiohttp.ClientSession | None = None
         self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
         self._consecutive_errors = 0
@@ -332,15 +336,21 @@ class XpubCoordinator(DataUpdateCoordinator):
         semaphore: asyncio.Semaphore,
         chain: int,
         cached_addrs: list[str],
+        request_delay: float = 0.0,
     ) -> dict[str, dict]:
         from .xpub import derive_addresses
 
         results: dict[str, dict] = {}
 
+        async def fetch_one(addr: str) -> dict:
+            result = await _fetch_address_data(session, addr, semaphore, self._mempool_url)
+            if request_delay > 0:
+                await asyncio.sleep(request_delay)
+            return result
+
         # Fetch cached addresses first
         if cached_addrs:
-            tasks = [_fetch_address_data(session, addr, semaphore, self._mempool_url) for addr in cached_addrs]
-            batch_results = await asyncio.gather(*tasks)
+            batch_results = await asyncio.gather(*[fetch_one(a) for a in cached_addrs])
             for addr, data in zip(cached_addrs, batch_results):
                 results[addr] = data
 
@@ -352,8 +362,7 @@ class XpubCoordinator(DataUpdateCoordinator):
             batch = await self.hass.async_add_executor_job(
                 partial(derive_addresses, self.xpub, index, XPUB_BATCH_SIZE, chain=chain)
             )
-            tasks = [_fetch_address_data(session, addr, semaphore, self._mempool_url) for addr in batch]
-            batch_results = await asyncio.gather(*tasks)
+            batch_results = await asyncio.gather(*[fetch_one(a) for a in batch])
 
             for addr, data in zip(batch, batch_results):
                 results[addr] = data
@@ -369,15 +378,19 @@ class XpubCoordinator(DataUpdateCoordinator):
         return results
 
     async def _scan_addresses(self, session: aiohttp.ClientSession, is_custom: bool = False) -> dict:
-        concurrency = XPUB_CONCURRENCY_CUSTOM if is_custom else XPUB_CONCURRENCY
+        if self._concurrency is not None:
+            concurrency = self._concurrency
+        else:
+            concurrency = XPUB_CONCURRENCY_CUSTOM if is_custom else XPUB_CONCURRENCY
         semaphore = asyncio.Semaphore(concurrency)
+        request_delay = REQUEST_DELAY_CUSTOM if is_custom else 0.0
 
         cached = await self._load_cached_addresses()
         cached_ext = cached["external"] if cached else []
         cached_chg = cached["change"] if cached else []
 
-        ext_results = await self._scan_chain(session, semaphore, 0, cached_ext)
-        chg_results = await self._scan_chain(session, semaphore, 1, cached_chg)
+        ext_results = await self._scan_chain(session, semaphore, 0, cached_ext, request_delay)
+        chg_results = await self._scan_chain(session, semaphore, 1, cached_chg, request_delay)
 
         # Merge results
         results = {**ext_results, **chg_results}

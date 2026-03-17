@@ -21,7 +21,10 @@ XPUB_PREFIXES = ("xpub", "ypub", "zpub")
 XPUB_SCAN_TIMEOUT = 600          # seconds — default scan timeout (public mempool)
 XPUB_SCAN_TIMEOUT_CUSTOM = 1800  # seconds — extended timeout for self-hosted instances
 XPUB_CONCURRENCY = 5             # parallel requests — public mempool
-XPUB_CONCURRENCY_CUSTOM = 2      # parallel requests — self-hosted (gentler on RPi)
+XPUB_CONCURRENCY_CUSTOM = 1      # parallel requests — self-hosted (serialized to spare RPi)
+
+CONF_XPUB_CONCURRENCY = "xpub_concurrency"
+REQUEST_DELAY_CUSTOM = 0.3       # seconds between requests for self-hosted instances
 
 DEFAULT_CURRENCY = "eur"
 CONF_SCAN_INTERVAL = "scan_interval"

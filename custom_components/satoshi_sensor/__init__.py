@@ -18,6 +18,7 @@ from .const import (
     CONF_MEMPOOL_URL,
     CONF_SCAN_INTERVAL,
     CONF_XPUB,
+    CONF_XPUB_CONCURRENCY,
     DEFAULT_CURRENCY,
     DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
@@ -47,7 +48,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB:
-        coordinator = XpubCoordinator(hass, entry.data[CONF_XPUB], currency, scan_interval, mempool_url)
+        concurrency = entry.options.get(CONF_XPUB_CONCURRENCY)
+        coordinator = XpubCoordinator(hass, entry.data[CONF_XPUB], currency, scan_interval, mempool_url, concurrency)
     else:
         coordinator = SatoshiSensorCoordinator(
             hass, entry.data[CONF_ADDRESS], currency, scan_interval, mempool_url
