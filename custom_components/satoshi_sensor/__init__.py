@@ -53,14 +53,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass, entry.data[CONF_ADDRESS], currency, scan_interval, mempool_url
         )
 
-    try:
-        await coordinator.async_config_entry_first_refresh()
-    except UpdateFailed as err:
-        raise ConfigEntryNotReady(f"Could not fetch initial data: {err}") from err
+    restored = await coordinator.async_restore_last_data()
+    if not restored:
+        try:
+            await coordinator.async_config_entry_first_refresh()
+        except UpdateFailed as err:
+            raise ConfigEntryNotReady(f"Could not fetch initial data: {err}") from err
+
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    _LOGGER.info("Set up entry %s (%s)", entry.title, entry.data.get(CONF_ENTRY_TYPE, "address"))
+    _LOGGER.info(
+        "Set up entry %s (%s)%s",
+        entry.title,
+        entry.data.get(CONF_ENTRY_TYPE, "address"),
+        " (restored from cache)" if restored else "",
+    )
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    if restored:
+        hass.async_create_task(coordinator.async_refresh())
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     # Auto-create the Portfolio Total entry if it doesn't exist yet

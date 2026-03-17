@@ -118,12 +118,22 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
         self._session: aiohttp.ClientSession | None = None
         self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
         self._consecutive_errors = 0
+        self._data_store = Store(hass, _STORAGE_VERSION, f"{DOMAIN}_data_{address[:32]}")
         super().__init__(
             hass,
             _LOGGER,
             name=f"satoshi_sensor_{address[:8]}",
             update_interval=self._base_interval,
         )
+
+    async def async_restore_last_data(self) -> bool:
+        """Restore last persisted data. Returns True if data was available."""
+        stored = await self._data_store.async_load()
+        if stored and isinstance(stored, dict) and "satoshi" in stored:
+            self.async_set_updated_data(stored)
+            _LOGGER.debug("Restored cached sensor data for %s", self.address[:8])
+            return True
+        return False
 
     def _apply_backoff(self) -> None:
         self._consecutive_errors += 1
@@ -161,7 +171,7 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             "Updated %s: %d sat (%.8f BTC), price %.2f %s",
             self.address[:8], balance_satoshi, balance_btc, price, self.currency.upper(),
         )
-        return {
+        result = {
             "satoshi": balance_satoshi,
             "btc": balance_btc,
             "fiat": round(balance_btc * price, 2),
@@ -171,6 +181,8 @@ class SatoshiSensorCoordinator(DataUpdateCoordinator):
             "unconfirmed_satoshi": addr_data["unconfirmed"],
             "tx_count": addr_data["tx_count"],
         }
+        await self._data_store.async_save(result)
+        return result
 
     async def async_shutdown(self) -> None:
         """Close the shared HTTP session."""
@@ -198,12 +210,22 @@ class XpubCoordinator(DataUpdateCoordinator):
         self._consecutive_errors = 0
         self._cached_addresses: list[str] | None = None
         self._store = Store(hass, _STORAGE_VERSION, f"{DOMAIN}_xpub_{xpub[:16]}")
+        self._data_store = Store(hass, _STORAGE_VERSION, f"{DOMAIN}_data_xpub_{xpub[:32]}")
         super().__init__(
             hass,
             _LOGGER,
             name=f"satoshi_sensor_xpub_{xpub[:8]}",
             update_interval=self._base_interval,
         )
+
+    async def async_restore_last_data(self) -> bool:
+        """Restore last persisted data. Returns True if data was available."""
+        stored = await self._data_store.async_load()
+        if stored and isinstance(stored, dict) and "satoshi" in stored:
+            self.async_set_updated_data(stored)
+            _LOGGER.debug("Restored cached sensor data for xpub %s", self.xpub[:8])
+            return True
+        return False
 
     def _apply_backoff(self) -> None:
         self._consecutive_errors += 1
@@ -249,7 +271,7 @@ class XpubCoordinator(DataUpdateCoordinator):
             "Updated xpub %s: %d active addresses, %d sat (%.8f BTC), price %.2f %s",
             self.xpub[:8], active_count, total_satoshi, balance_btc, price, self.currency.upper(),
         )
-        return {
+        result = {
             "satoshi": total_satoshi,
             "btc": balance_btc,
             "fiat": round(balance_btc * price, 2),
@@ -265,6 +287,8 @@ class XpubCoordinator(DataUpdateCoordinator):
                 if d["tx_count"] > 0
             },
         }
+        await self._data_store.async_save(result)
+        return result
 
     async def async_shutdown(self) -> None:
         """Close the shared HTTP session."""

@@ -1,9 +1,11 @@
 """Tests for coordinator data processing logic."""
+import asyncio
 import importlib.util
 import os
 import sys
 import types
 from datetime import timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -174,6 +176,54 @@ class TestClassifyHttpError:
     def test_public_url_500_no_indexing_hint(self):
         msg = _classify_http_error(500, "mempool.space")
         assert "indexing" not in msg.lower()
+
+
+_SAMPLE_DATA = {
+    "satoshi": 100_000,
+    "btc": 0.001,
+    "fiat": 5.0,
+    "currency": "EUR",
+    "price": 5000.0,
+    "price_change_24h": 1.0,
+    "unconfirmed_satoshi": 0,
+    "tx_count": 3,
+}
+
+
+def _make_coordinator_with_store(store_data):
+    """Instantiate SatoshiSensorCoordinator bypassing __init__, inject mocked _data_store."""
+    coord = object.__new__(_coord_mod.SatoshiSensorCoordinator)
+    coord.address = "bc1qtest12345678"
+    coord.xpub = "xpubtest12345678"
+    mock_store = MagicMock()
+    mock_store.async_load = AsyncMock(return_value=store_data)
+    coord._data_store = mock_store
+    coord.async_set_updated_data = MagicMock()
+    return coord
+
+
+class TestRestoreLastData:
+    def test_returns_true_and_sets_data_when_valid(self):
+        coord = _make_coordinator_with_store(_SAMPLE_DATA)
+        result = asyncio.run(coord.async_restore_last_data())
+        assert result is True
+        coord.async_set_updated_data.assert_called_once_with(_SAMPLE_DATA)
+
+    def test_returns_false_when_storage_empty(self):
+        coord = _make_coordinator_with_store(None)
+        result = asyncio.run(coord.async_restore_last_data())
+        assert result is False
+        coord.async_set_updated_data.assert_not_called()
+
+    def test_returns_false_when_satoshi_key_missing(self):
+        coord = _make_coordinator_with_store({"btc": 0.001})
+        result = asyncio.run(coord.async_restore_last_data())
+        assert result is False
+
+    def test_returns_false_when_stored_data_is_not_dict(self):
+        coord = _make_coordinator_with_store([1, 2, 3])
+        result = asyncio.run(coord.async_restore_last_data())
+        assert result is False
 
 
 class TestBackoffLogic:
