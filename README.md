@@ -31,6 +31,7 @@ Home Assistant Custom Integration zur Überwachung von Bitcoin-Wallet-Guthaben �
 - HD-Wallet: **Adress-Cache** über HA-Storage — schnellerer Neustart ohne vollständigen Rescan
 - Konfigurierbares Aktualisierungsintervall (Standard: 5 min, Minimum: 1 min)
 - **Eigene Mempool-API-URL** konfigurierbar (z. B. Umbrel, RaspiBlitz oder eigene Instanz)
+- **Schneller Neustart** — zuletzt abgerufene Werte werden sofort aus dem HA-Storage wiederhergestellt, API-Abruf läuft im Hintergrund
 - **Exponential Backoff** bei API-Fehlern (Rate Limits, Server-Fehler) — verdoppelt das Intervall bis max. 4×
 - **Diagnostik** über Home Assistant → Geräte & Dienste → Satoshi Sensor → Diagnostik herunterladen
 - Datenquellen: [mempool.space](https://mempool.space) (Guthaben) und [CoinGecko](https://coingecko.com) (Preis)
@@ -197,6 +198,7 @@ Home Assistant custom integration to monitor Bitcoin wallet balances — support
 - HD wallet: **address cache** via HA storage — faster restarts without full rescan
 - Configurable update interval (default: 5 min, minimum: 1 min)
 - **Custom Mempool API URL** configurable (e.g. Umbrel, RaspiBlitz or self-hosted instance)
+- **Fast restart** — last fetched values are restored immediately from HA storage, API refresh runs in the background
 - **Exponential backoff** on API errors (rate limits, server errors) — doubles the interval up to 4×
 - **Diagnostics** via Home Assistant → Devices & Services → Satoshi Sensor → Download diagnostics
 - Data sourced from [mempool.space](https://mempool.space) (balance) and [CoinGecko](https://coingecko.com) (price)
