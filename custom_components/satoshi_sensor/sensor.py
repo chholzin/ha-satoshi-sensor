@@ -62,6 +62,7 @@ async def async_setup_entry(
         coordinator: StatsCoordinator = hass.data[DOMAIN][entry.entry_id]
         async_add_entities([
             LastBlockTimeSensor(coordinator),
+            BtcPriceStatsSensor(coordinator),
             SatsPerUnitSensor(coordinator),
             FeeSensor(coordinator, "low"),
             FeeSensor(coordinator, "medium"),
@@ -463,6 +464,27 @@ class LastBlockTimeSensor(_StatsSensor):
         if self.coordinator.data:
             return {"block_height": self.coordinator.data.get("last_block_height")}
         return {}
+
+
+class BtcPriceStatsSensor(_StatsSensor):
+    _attr_unique_id = f"{DOMAIN}_stats_btc_price"
+    _attr_name = "BTC Price"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 2
+    _attr_icon = "mdi:bitcoin"
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        if self.coordinator.data:
+            return self.coordinator.data["currency"]
+        return None
+
+    @property
+    def native_value(self) -> float | None:
+        if self.coordinator.data:
+            return self.coordinator.data.get("price")
+        return None
 
 
 class SatsPerUnitSensor(_StatsSensor):

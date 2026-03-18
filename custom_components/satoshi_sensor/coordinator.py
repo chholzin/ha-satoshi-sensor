@@ -521,6 +521,7 @@ class StatsCoordinator(DataUpdateCoordinator):
             result = {
                 "last_block_timestamp": block["timestamp"],
                 "last_block_height": block["height"],
+                "price": price,
                 "sats_per_unit": round(SATOSHIS_PER_BTC / price) if price else None,
                 "currency": self.currency.upper(),
                 "fee_low": fees["hourFee"],
