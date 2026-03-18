@@ -13,6 +13,9 @@ CONF_ENTRY_TYPE = "entry_type"
 ENTRY_TYPE_ADDRESS = "address"
 ENTRY_TYPE_XPUB = "xpub"
 ENTRY_TYPE_TOTALS = "totals"
+ENTRY_TYPE_STATS = "stats"
+
+STATS_UNIQUE_ID = f"{DOMAIN}_stats"
 
 GAP_LIMIT = 20
 XPUB_BATCH_SIZE = 20
@@ -37,6 +40,8 @@ SUPPORTED_CURRENCIES = ["eur", "usd", "chf", "gbp"]
 CONF_MEMPOOL_URL = "mempool_url"
 DEFAULT_MEMPOOL_URL = "https://mempool.space/api"
 MEMPOOL_API_URL = "https://mempool.space/api/address/{address}"
+MEMPOOL_FEES_PATH = "/v1/fees/recommended"
+MEMPOOL_BLOCKS_PATH = "/v1/blocks"
 COINGECKO_API_URL = (
     "https://api.coingecko.com/api/v3/simple/price"
     "?ids=bitcoin&vs_currencies={currency}&include_24hr_change=true"

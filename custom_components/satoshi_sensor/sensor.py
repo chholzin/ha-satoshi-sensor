@@ -1,6 +1,8 @@
 """Sensor platform for Satoshi Sensor."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -15,9 +17,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB,
-    DOMAIN, ENTRY_TYPE_TOTALS, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE,
+    DOMAIN, ENTRY_TYPE_STATS, ENTRY_TYPE_TOTALS, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE,
 )
-from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
+from .coordinator import SatoshiSensorCoordinator, StatsCoordinator, XpubCoordinator
 
 _AnyCoordinator = SatoshiSensorCoordinator | XpubCoordinator
 
@@ -53,6 +55,17 @@ async def async_setup_entry(
             TotalSatoshiSensor(hass),
             TotalBtcSensor(hass),
             TotalValueSensor(hass),
+        ])
+        return
+
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_STATS:
+        coordinator: StatsCoordinator = hass.data[DOMAIN][entry.entry_id]
+        async_add_entities([
+            LastBlockTimeSensor(coordinator),
+            SatsPerUnitSensor(coordinator),
+            FeeSensor(coordinator, "low"),
+            FeeSensor(coordinator, "medium"),
+            FeeSensor(coordinator, "high"),
         ])
         return
 
@@ -407,3 +420,89 @@ class TotalValueSensor(_TotalSensor):
         if len(currencies) > 1:
             return {"warning": f"Mixed currencies detected: {', '.join(sorted(currencies))} — value unavailable"}
         return {}
+
+
+# ── Satoshi Stats sensors ─────────────────────────────────────────────────────
+
+_STATS_DEVICE = DeviceInfo(
+    identifiers={(DOMAIN, "_stats")},
+    name="Satoshi Sensor · Stats",
+    manufacturer="Bitcoin",
+    model="Network Statistics",
+    entry_type=DeviceEntryType.SERVICE,
+)
+
+_FEE_PRIORITY = {
+    "low":    ("Fee · Low",    "mdi:speedometer-slow",   "fee_low"),
+    "medium": ("Fee · Medium", "mdi:speedometer-medium", "fee_medium"),
+    "high":   ("Fee · High",   "mdi:speedometer",        "fee_high"),
+}
+
+
+class _StatsSensor(CoordinatorEntity[StatsCoordinator], SensorEntity):
+    _attr_has_entity_name = True
+    _attr_device_info = _STATS_DEVICE
+
+
+class LastBlockTimeSensor(_StatsSensor):
+    _attr_unique_id = f"{DOMAIN}_stats_last_block"
+    _attr_name = "Last Block"
+    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_icon = "mdi:cube-outline"
+
+    @property
+    def native_value(self) -> datetime | None:
+        if self.coordinator.data:
+            return datetime.fromtimestamp(
+                self.coordinator.data["last_block_timestamp"], tz=timezone.utc
+            )
+        return None
+
+    @property
+    def extra_state_attributes(self) -> dict:
+        if self.coordinator.data:
+            return {"block_height": self.coordinator.data.get("last_block_height")}
+        return {}
+
+
+class SatsPerUnitSensor(_StatsSensor):
+    _attr_unique_id = f"{DOMAIN}_stats_sats_per_unit"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:bitcoin"
+
+    @property
+    def name(self) -> str:
+        currency = self.coordinator.data["currency"] if self.coordinator.data else "EUR"
+        return f"Sats per 1 {currency}"
+
+    @property
+    def native_unit_of_measurement(self) -> str | None:
+        if self.coordinator.data:
+            return f"sat/{self.coordinator.data['currency']}"
+        return None
+
+    @property
+    def native_value(self) -> int | None:
+        if self.coordinator.data:
+            return self.coordinator.data.get("sats_per_unit")
+        return None
+
+
+class FeeSensor(_StatsSensor):
+    _attr_native_unit_of_measurement = "sat/vB"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_suggested_display_precision = 0
+
+    def __init__(self, coordinator: StatsCoordinator, priority: str) -> None:
+        super().__init__(coordinator)
+        name, icon, key = _FEE_PRIORITY[priority]
+        self._key = key
+        self._attr_name = name
+        self._attr_icon = icon
+        self._attr_unique_id = f"{DOMAIN}_stats_{key}"
+
+    @property
+    def native_value(self) -> int | None:
+        if self.coordinator.data:
+            return self.coordinator.data.get(self._key)
+        return None

@@ -26,6 +26,8 @@ for _k, _v in {
     "XPUB_CONCURRENCY": 3, "XPUB_CONCURRENCY_CUSTOM": 1,
     "CONF_XPUB_CONCURRENCY": "xpub_concurrency",
     "REQUEST_DELAY_PUBLIC": 0.1, "REQUEST_DELAY_CUSTOM": 0.3,
+    "MEMPOOL_FEES_PATH": "/v1/fees/recommended",
+    "MEMPOOL_BLOCKS_PATH": "/v1/blocks",
 }.items():
     setattr(_const, _k, _v)
 sys.modules[f"{_pkg_name}.const"] = _const
@@ -228,6 +230,32 @@ class TestRestoreLastData:
         coord = _make_coordinator_with_store([1, 2, 3])
         result = asyncio.run(coord.async_restore_last_data())
         assert result is False
+
+
+class TestStatsCoordinatorRestore:
+    def _make_stats_coordinator(self, store_data):
+        coord = object.__new__(_coord_mod.StatsCoordinator)
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value=store_data)
+        coord._data_store = mock_store
+        coord.async_set_updated_data = MagicMock()
+        return coord
+
+    def test_restore_returns_true_with_valid_data(self):
+        data = {"fee_high": 20, "fee_medium": 12, "fee_low": 8,
+                "last_block_timestamp": 1700000000, "last_block_height": 820000,
+                "sats_per_unit": 2000, "currency": "EUR"}
+        coord = self._make_stats_coordinator(data)
+        assert asyncio.run(coord.async_restore_last_data()) is True
+        coord.async_set_updated_data.assert_called_once_with(data)
+
+    def test_restore_returns_false_when_empty(self):
+        coord = self._make_stats_coordinator(None)
+        assert asyncio.run(coord.async_restore_last_data()) is False
+
+    def test_restore_returns_false_without_fee_key(self):
+        coord = self._make_stats_coordinator({"last_block_timestamp": 1700000000})
+        assert asyncio.run(coord.async_restore_last_data()) is False
 
 
 class TestBackoffLogic:

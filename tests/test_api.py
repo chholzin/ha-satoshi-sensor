@@ -33,6 +33,8 @@ for _k, _v in {
     "CONF_XPUB_CONCURRENCY": "xpub_concurrency",
     "REQUEST_DELAY_PUBLIC": 0.1,
     "REQUEST_DELAY_CUSTOM": 0.3,
+    "MEMPOOL_FEES_PATH": "/v1/fees/recommended",
+    "MEMPOOL_BLOCKS_PATH": "/v1/blocks",
 }.items():
     setattr(_const, _k, _v)
 sys.modules[f"{_pkg_name}.const"] = _const

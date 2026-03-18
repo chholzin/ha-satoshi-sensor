@@ -23,17 +23,20 @@ from .const import (
     DEFAULT_MEMPOOL_URL,
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
+    ENTRY_TYPE_STATS,
     ENTRY_TYPE_TOTALS,
     ENTRY_TYPE_XPUB,
     SIGNAL_TOTALS_UPDATE,
+    STATS_UNIQUE_ID,
+    TOTALS_UNIQUE_ID,
 )
-from .coordinator import SatoshiSensorCoordinator, XpubCoordinator
+from .coordinator import SatoshiSensorCoordinator, StatsCoordinator, XpubCoordinator
 
 PLATFORMS = [Platform.SENSOR]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    # The Portfolio Total entry has no coordinator — just forward to sensor platform
+    # Portfolio Total — no coordinator, just forward to sensor platform
     if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS:
         hass.data.setdefault(DOMAIN, {})
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -47,9 +50,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         CONF_MEMPOOL_URL, entry.data.get(CONF_MEMPOOL_URL, DEFAULT_MEMPOOL_URL)
     )
 
+    # Satoshi Stats — network statistics coordinator
+    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_STATS:
+        coordinator = StatsCoordinator(hass, currency, scan_interval, mempool_url)
+        restored = await coordinator.async_restore_last_data()
+        if not restored:
+            try:
+                await coordinator.async_config_entry_first_refresh()
+            except UpdateFailed as err:
+                raise ConfigEntryNotReady(f"Could not fetch stats: {err}") from err
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
+        await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+        if restored:
+            hass.async_create_task(coordinator.async_refresh())
+        entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+        return True
+
+    # Wallet entry (address or xpub)
     if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_XPUB:
         concurrency = entry.options.get(CONF_XPUB_CONCURRENCY)
-        coordinator = XpubCoordinator(hass, entry.data[CONF_XPUB], currency, scan_interval, mempool_url, concurrency)
+        coordinator = XpubCoordinator(
+            hass, entry.data[CONF_XPUB], currency, scan_interval, mempool_url, concurrency
+        )
     else:
         coordinator = SatoshiSensorCoordinator(
             hass, entry.data[CONF_ADDRESS], currency, scan_interval, mempool_url
@@ -75,24 +97,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.async_create_task(coordinator.async_refresh())
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
-    # Auto-create the Portfolio Total entry if it doesn't exist yet
+    # Auto-create Portfolio Total and Satoshi Stats if not yet present
     existing = hass.config_entries.async_entries(DOMAIN)
-    if not any(e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS for e in existing):
+    has_totals = any(e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS for e in existing)
+    has_stats = any(e.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_STATS for e in existing)
+
+    if not has_totals:
         hass.async_create_task(
             hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": "integration_discovery"},
+                data={"type": ENTRY_TYPE_TOTALS},
             )
         )
     else:
-        # Signal existing total sensors to re-subscribe to the new coordinator
         async_dispatcher_send(hass, SIGNAL_TOTALS_UPDATE)
+
+    if not has_stats:
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": "integration_discovery"},
+                data={"type": ENTRY_TYPE_STATS},
+            )
+        )
 
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if entry.data.get(CONF_ENTRY_TYPE) == ENTRY_TYPE_TOTALS:
+    entry_type = entry.data.get(CONF_ENTRY_TYPE)
+
+    if entry_type in (ENTRY_TYPE_TOTALS, ENTRY_TYPE_STATS):
         return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

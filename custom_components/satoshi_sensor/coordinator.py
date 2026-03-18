@@ -19,6 +19,8 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
     GAP_LIMIT,
+    MEMPOOL_BLOCKS_PATH,
+    MEMPOOL_FEES_PATH,
     MIN_UPDATE_INTERVAL,
     REQUEST_DELAY_CUSTOM,
     REQUEST_DELAY_PUBLIC,
@@ -428,3 +430,110 @@ class XpubCoordinator(DataUpdateCoordinator):
             await self._save_cached_addresses(new_cache)
 
         return results
+
+
+# ── Network statistics coordinator ───────────────────────────────────────────
+
+async def _fetch_fees(session: aiohttp.ClientSession, mempool_base_url: str) -> dict:
+    url = f"{mempool_base_url.rstrip('/')}{MEMPOOL_FEES_PATH}"
+    async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+        if resp.status != 200:
+            raise UpdateFailed(_classify_http_error(resp.status, "mempool.space (fees)"))
+        try:
+            return await resp.json()
+        except (ValueError, aiohttp.ContentTypeError) as err:
+            raise UpdateFailed(f"mempool.space fees: invalid JSON: {err}") from err
+
+
+async def _fetch_latest_block(session: aiohttp.ClientSession, mempool_base_url: str) -> dict:
+    url = f"{mempool_base_url.rstrip('/')}{MEMPOOL_BLOCKS_PATH}"
+    async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+        if resp.status != 200:
+            raise UpdateFailed(_classify_http_error(resp.status, "mempool.space (blocks)"))
+        try:
+            blocks = await resp.json()
+        except (ValueError, aiohttp.ContentTypeError) as err:
+            raise UpdateFailed(f"mempool.space blocks: invalid JSON: {err}") from err
+    if not blocks or not isinstance(blocks, list):
+        raise UpdateFailed("mempool.space blocks: unexpected response format")
+    return blocks[0]
+
+
+class StatsCoordinator(DataUpdateCoordinator):
+    """Fetch Bitcoin network statistics: fees, latest block, BTC price."""
+
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        currency: str,
+        update_interval: int = DEFAULT_UPDATE_INTERVAL,
+        mempool_url: str = DEFAULT_MEMPOOL_URL,
+    ) -> None:
+        self.currency = currency.lower()
+        self._mempool_url = mempool_url
+        self._session: aiohttp.ClientSession | None = None
+        self._base_interval = timedelta(seconds=max(update_interval, MIN_UPDATE_INTERVAL))
+        self._consecutive_errors = 0
+        self._data_store = Store(hass, _STORAGE_VERSION, f"{DOMAIN}_data_stats")
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=f"{DOMAIN}_stats",
+            update_interval=self._base_interval,
+        )
+
+    async def async_restore_last_data(self) -> bool:
+        stored = await self._data_store.async_load()
+        if stored and isinstance(stored, dict) and "fee_high" in stored:
+            self.async_set_updated_data(stored)
+            _LOGGER.debug("Restored cached stats data")
+            return True
+        return False
+
+    def _apply_backoff(self) -> None:
+        self._consecutive_errors += 1
+        multiplier = min(2 ** self._consecutive_errors, _MAX_BACKOFF_MULTIPLIER)
+        self.update_interval = self._base_interval * multiplier
+
+    def _reset_backoff(self) -> None:
+        if self._consecutive_errors > 0:
+            self._consecutive_errors = 0
+            self.update_interval = self._base_interval
+
+    async def _async_update_data(self) -> dict:
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        try:
+            fees, block, (price, _) = await asyncio.gather(
+                _fetch_fees(self._session, self._mempool_url),
+                _fetch_latest_block(self._session, self._mempool_url),
+                _fetch_price(self._session, self.currency),
+            )
+        except aiohttp.ClientError as err:
+            self._apply_backoff()
+            raise UpdateFailed(f"Network error: {err}") from err
+        except UpdateFailed:
+            self._apply_backoff()
+            raise
+
+        self._reset_backoff()
+        try:
+            result = {
+                "last_block_timestamp": block["timestamp"],
+                "last_block_height": block["height"],
+                "sats_per_unit": round(SATOSHIS_PER_BTC / price) if price else None,
+                "currency": self.currency.upper(),
+                "fee_low": fees["hourFee"],
+                "fee_medium": fees["halfHourFee"],
+                "fee_high": fees["fastestFee"],
+            }
+        except (KeyError, TypeError, ZeroDivisionError) as err:
+            raise UpdateFailed(f"Unexpected stats response structure: {err}") from err
+
+        await self._data_store.async_save(result)
+        return result
+
+    async def async_shutdown(self) -> None:
+        if self._session and not self._session.closed:
+            await self._session.close()
+        await super().async_shutdown()

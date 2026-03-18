@@ -30,7 +30,8 @@
         "data": {
           "currency": "Fiat-Währung",
           "scan_interval": "Aktualisierungsintervall (Sekunden)",
-          "mempool_url": "Mempool-API-URL (Standard: mempool.space)"
+          "mempool_url": "Mempool-API-URL (Standard: mempool.space)",
+          "xpub_concurrency": "Parallele Anfragen (nur xpub, 1 = seriell)"
         }
       }
     }
