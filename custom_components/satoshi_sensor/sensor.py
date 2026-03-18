@@ -483,7 +483,8 @@ class BtcPriceStatsSensor(_StatsSensor):
     @property
     def native_value(self) -> float | None:
         if self.coordinator.data:
-            return self.coordinator.data.get("price")
+            price = self.coordinator.data.get("price")
+            return round(price, 2) if price is not None else None
         return None
 
 
