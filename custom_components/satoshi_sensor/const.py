@@ -37,6 +37,7 @@ MIN_UPDATE_INTERVAL = 60  # seconds
 
 SUPPORTED_CURRENCIES = ["eur", "usd", "chf", "gbp"]
 
+CONF_INCLUDE_IN_TOTAL = "include_in_total"
 CONF_MEMPOOL_URL = "mempool_url"
 DEFAULT_MEMPOOL_URL = "https://mempool.space/api"
 MEMPOOL_API_URL = "https://mempool.space/api/address/{address}"

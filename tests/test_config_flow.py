@@ -33,6 +33,7 @@ _const.CONF_XPUB_CONCURRENCY = "xpub_concurrency"
 _const.XPUB_CONCURRENCY = 5
 _const.ENTRY_TYPE_STATS = "stats"
 _const.STATS_UNIQUE_ID = "satoshi_sensor_stats"
+_const.CONF_INCLUDE_IN_TOTAL = "include_in_total"
 sys.modules[f"{_pkg_name}.const"] = _const
 
 # Stub xpub module (b58check_decode used by _validate_btc_address)

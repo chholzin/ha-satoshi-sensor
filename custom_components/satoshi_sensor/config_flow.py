@@ -18,6 +18,7 @@ from .const import (
     CONF_ADDRESS,
     CONF_CURRENCY,
     CONF_ENTRY_TYPE,
+    CONF_INCLUDE_IN_TOTAL,
     CONF_LABEL,
     CONF_MEMPOOL_URL,
     CONF_SCAN_INTERVAL,
@@ -98,6 +99,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
             wallet = user_input[_CONF_WALLET].strip()
             label = user_input.get(CONF_LABEL, "").strip()
             currency = user_input.get(CONF_CURRENCY, DEFAULT_CURRENCY)
+            include_in_total = user_input.get(CONF_INCLUDE_IN_TOTAL, True)
 
             if _validate_xpub(wallet):
                 error_key = await self.hass.async_add_executor_job(_test_derive, wallet)
@@ -115,6 +117,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
                             CONF_XPUB: wallet,
                             CONF_LABEL: label or wallet[:8] + "…",
                             CONF_CURRENCY: currency,
+                            CONF_INCLUDE_IN_TOTAL: include_in_total,
                         },
                     )
             elif _validate_btc_address(wallet):
@@ -127,6 +130,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_ADDRESS: wallet,
                         CONF_LABEL: label or wallet[:8] + "…",
                         CONF_CURRENCY: currency,
+                        CONF_INCLUDE_IN_TOTAL: include_in_total,
                     },
                 )
             else:
@@ -141,6 +145,7 @@ class SatoshiSensorConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Optional(CONF_CURRENCY, default=DEFAULT_CURRENCY): vol.In(
                         SUPPORTED_CURRENCIES
                     ),
+                    vol.Optional(CONF_INCLUDE_IN_TOTAL, default=True): bool,
                 }
             ),
             errors=errors,
@@ -192,6 +197,10 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
         current_concurrency = self.config_entry.options.get(
             CONF_XPUB_CONCURRENCY, XPUB_CONCURRENCY
         )
+        current_include = self.config_entry.options.get(
+            CONF_INCLUDE_IN_TOTAL,
+            self.config_entry.data.get(CONF_INCLUDE_IN_TOTAL, True),
+        )
 
         schema: dict = {
             vol.Optional(CONF_CURRENCY, default=current_currency): vol.In(
@@ -201,6 +210,7 @@ class SatoshiSensorOptionsFlow(OptionsFlow):
                 int, vol.Range(min=MIN_UPDATE_INTERVAL)
             ),
             vol.Optional(CONF_MEMPOOL_URL, default=current_mempool): str,
+            vol.Optional(CONF_INCLUDE_IN_TOTAL, default=current_include): bool,
         }
         if is_xpub:
             schema[vol.Optional(CONF_XPUB_CONCURRENCY, default=current_concurrency)] = vol.All(

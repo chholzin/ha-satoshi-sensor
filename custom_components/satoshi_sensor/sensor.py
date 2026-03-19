@@ -16,8 +16,9 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
-    CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_LABEL, CONF_XPUB,
-    DOMAIN, ENTRY_TYPE_STATS, ENTRY_TYPE_TOTALS, ENTRY_TYPE_XPUB, SIGNAL_TOTALS_UPDATE,
+    CONF_ADDRESS, CONF_ENTRY_TYPE, CONF_INCLUDE_IN_TOTAL, CONF_LABEL, CONF_XPUB,
+    DOMAIN, ENTRY_TYPE_ADDRESS, ENTRY_TYPE_STATS, ENTRY_TYPE_TOTALS, ENTRY_TYPE_XPUB,
+    SIGNAL_TOTALS_UPDATE,
 )
 from .coordinator import SatoshiSensorCoordinator, StatsCoordinator, XpubCoordinator
 
@@ -360,10 +361,21 @@ class _TotalSensor(SensorEntity):
         self.async_write_ha_state()
 
     def _coordinators(self):
-        return [
-            c for k, c in self._hass.data.get(DOMAIN, {}).items()
-            if not k.startswith("_") and hasattr(c, "data") and c.data
-        ]
+        domain_data = self._hass.data.get(DOMAIN, {})
+        result = []
+        for entry in self._hass.config_entries.async_entries(DOMAIN):
+            if entry.data.get(CONF_ENTRY_TYPE) not in (ENTRY_TYPE_ADDRESS, ENTRY_TYPE_XPUB):
+                continue
+            include = entry.options.get(
+                CONF_INCLUDE_IN_TOTAL,
+                entry.data.get(CONF_INCLUDE_IN_TOTAL, True),
+            )
+            if not include:
+                continue
+            coordinator = domain_data.get(entry.entry_id)
+            if coordinator and hasattr(coordinator, "data") and coordinator.data:
+                result.append(coordinator)
+        return result
 
 
 class TotalSatoshiSensor(_TotalSensor):
